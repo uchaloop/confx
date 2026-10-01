@@ -2,23 +2,27 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/uchaloop/confx.svg)](https://pkg.go.dev/github.com/uchaloop/confx) [![CI](https://github.com/uchaloop/confx/actions/workflows/ci.yml/badge.svg)](https://github.com/uchaloop/confx/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/tag/uchaloop/confx?label=release)](https://github.com/uchaloop/confx/tags) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Install](#installation) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Configuration](#name-prefix-and-tag) · [Examples](#documentation)
+**Explicit confmaker registration for Uber Fx.** confx provides typed configs to
+Fx consumers. [confmaker](https://github.com/uchaloop/confmaker) owns defaults,
+ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
 
-The [Uber Fx](https://github.com/uber-go/fx) adapter for
-[confmaker](https://github.com/uchaloop/confmaker): it loads configs when the
-application starts and provides them to the Fx container.
+[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Testing](#testing) · [Reference](#reference)
 
 ## Installation
 
-Requires Go 1.27 or later.
+Requires **Go 1.27 or later** and confmaker **v0.8.0**. This README describes
+the **v0.2.0** API.
 
-```bash
-go get github.com/uchaloop/confx@v0.1.0
+```sh
+go get github.com/uchaloop/confx@v0.2.0
 ```
 
-Declaring configs, tags, JSON values, the manifest and the dump are described in
-the [confmaker README](https://github.com/uchaloop/confmaker#readme) and its
-[package documentation](https://pkg.go.dev/github.com/uchaloop/confmaker).
+```go
+import "github.com/uchaloop/confx"
+```
+
+Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`,
+`WithPrefix` or `WithDump`.
 
 ## Quick start
 
@@ -26,142 +30,148 @@ the [confmaker README](https://github.com/uchaloop/confmaker#readme) and its
 package main
 
 import (
-    "fmt"
+	"fmt"
+	"log"
 
-    "github.com/uchaloop/confx"
-    "go.uber.org/fx"
+	"github.com/uchaloop/confx"
+	"go.uber.org/fx"
 )
 
-type Config struct {
-    Port int `env:"PORT"`
+type ServerConfig struct {
+	Port int `env:"PORT"`
 }
 
-func (Config) ConfigName() string { return "server" }
-func (c *Config) SetDefaults() { c.Port = 8080 }
+func (c *ServerConfig) SetDefaults() { c.Port = 8080 }
 
 func main() {
-    fx.New(
-        confx.Module(),
-        confx.Provide[Config](), // SERVER_PORT, default 8080
-        fx.Invoke(func(cfg Config) { fmt.Println(cfg.Port) }),
-    ).Run()
+	app := fx.New(
+		confx.Module(),
+		confx.Provide[ServerConfig]("server"),
+		fx.Invoke(func(cfg ServerConfig) {
+			fmt.Println(cfg.Port) // Pass the config to your server constructor.
+		}),
+	)
+	if err := app.Err(); err != nil {
+		log.Fatal(err)
+	}
+	app.Run()
 }
 ```
 
-`Module` is required once. Configurations are loaded during dependency resolution,
-including registrations with no consumer. Loading errors prevent successful startup.
-The configuration type has no dependency on Fx or confmaker.
-
-| Registration | What the consumer receives |
-|---|---|
-| `Provide[Config]()` | Untagged Config |
-| `ProvideNamed[Config]("replica")` | Config with Fx tag `name:"replica"` |
-
-<details>
-<summary><strong>Two configurations of the same type</strong></summary>
-
-```go
-confx.Provide[Config](),
-confx.ProvideNamed[Config]("replica"), // REPLICA_PORT
-```
-
-```go
-type Params struct {
-    fx.In
-    Primary Config
-    Replica Config `name:"replica"`
-}
-```
-
-</details>
-
-## How it works
+Run with no ENV for the default `8080`, or set `SERVER_PORT` in your IDE or shell.
+The config type needs no dependency on either confmaker or Fx.
 
 ```mermaid
 flowchart LR
-    A["Module: one loader"] --> C["Register every configuration"]
-    B["Provide / ProvideNamed"] --> C
-    C --> D["Load and validate together"]
-    D -->|success| E["Typed values in Fx"]
-    D -->|error| F["Fail application construction/startup"]
+    A["Provide / ProvideNamed"] --> B["Module: one core loader"]
+    B --> C["Register and load all configs during fx.New"]
+    C -->|Success| D["Typed values for consumers"]
+    C -->|Error| E["app.Err; startup prevented"]
 ```
 
-> [!NOTE]
-> `WithName` changes the configuration instance name. Only `ProvideNamed`
-> adds an Fx name tag. These are separate mechanisms.
+## Multiple instances
 
-## Name, prefix and tag
+An instance name, an ENV prefix and an Fx tag serve different purposes:
 
-These are three different things:
-
-| | Comes from | Used for |
+| Concept | Source | Purpose |
 |---|---|---|
-| instance name | `ConfigName`, `confmaker.WithName`, or the `ProvideNamed` name | the default prefix and errors |
-| ENV prefix | the instance name (`replica` → `REPLICA_`), or `confmaker.WithPrefix` | variable names |
-| Fx tag | `ProvideNamed` only | how consumers ask for the value |
+| Instance name | First argument to Provide / ProvideNamed | Core registration identity and diagnostics |
+| ENV prefix | Derived from the name, or WithPrefix | Variable lookup |
+| Fx name tag | ProvideNamed only | Select a named dependency |
 
-`Provide` with `confmaker.WithName` changes the name and prefix but adds no Fx
-tag. `ProvideNamed` refuses a further `WithName`.
-
-`Module` takes the options of `confmaker.MakeLoader`, such as
-`confmaker.WithDump(os.Stdout)` or `confmaker.WithEnv(vars)` in tests.
-
-## Documentation
-
-[pkg.go.dev/github.com/uchaloop/confx](https://pkg.go.dev/github.com/uchaloop/confx)
-
-## Recommended configuration
-
-> [!TIP]
-> We recommend [confmaker](https://github.com/uchaloop/confmaker) for typed ENV
-> configuration and [confx](https://github.com/uchaloop/confx) for its Fx integration.
-> Configuration loading stays in the application; it is optional for the work libraries.
-
-<details>
-<summary><strong>Configure from ENV with confmaker / confx</strong></summary>
-
-The pair separates configuration declarations from application wiring. A
-library declares an ordinary struct; the application chooses how to load it:
+Using `ServerConfig` from the quick start, replace its registration with:
 
 ```go
-type Config struct {
-    Port int `env:"PORT"`
+confx.Provide[ServerConfig]("server"),
+confx.ProvideNamed[ServerConfig]("replica", confmaker.WithPrefix("READ_SERVER_")),
+```
+
+The first reads `SERVER_PORT`, the second `READ_SERVER_PORT`. Consume them with:
+
+```go
+type Params struct {
+	fx.In
+	Primary ServerConfig
+	Replica ServerConfig `name:"replica"`
 }
-
-func (Config) ConfigName() string { return "server" }
-func (c *Config) SetDefaults() { c.Port = 8080 }
 ```
 
-Without Fx:
+Use `fx.Invoke(func(p Params) { /* use p.Primary and p.Replica */ })` or take
+`Params` in a constructor. Two untagged providers of the same type conflict in
+Fx even if their instance names differ. `WithPrefix` never changes the Fx tag.
+
+## Lifecycle and errors
+
+Include `confx.Module()` exactly once when using Provide or ProvideNamed.
+All provided configs load during `fx.New`, including those with no consumers.
+A core loading error is available through `app.Err()` and prevents startup.
+
+Core structured errors remain reachable through Fx's wrappers:
 
 ```go
-cfg, err := confmaker.Load[Config]() // SERVER_PORT, default 8080
+if err := app.Err(); err != nil {
+	for _, problem := range confmaker.ConfigErrors(err) {
+		fmt.Println(problem.Kind, problem.InstanceName, problem.VariableName)
+	}
+	log.Fatal(err)
+}
 ```
 
-With Fx:
+Always handle the original error: missing Module and Fx dependency conflicts are
+not core `ConfigError` diagnostics. Config values should be treated as read-only.
+Provider options may be reused across applications; each app receives its own
+loader and values.
+
+## Testing
+
+Pass an isolated ENV map to Module. This setup uses `ServerConfig` above and
+imports `testing`, confmaker, confx and Fx:
 
 ```go
-confx.Module(),
-confx.Provide[Config](),
+func TestServerConfig(t *testing.T) {
+	t.Parallel()
+
+	var got ServerConfig
+	app := fx.New(
+		fx.NopLogger,
+		confx.Module(confmaker.WithEnv(map[string]string{"SERVER_PORT": "9090"})),
+		confx.Provide[ServerConfig]("server"),
+		fx.Populate(&got),
+	)
+	if err := app.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got.Port != 9090 {
+		t.Fatalf("unexpected port: %d", got.Port)
+	}
+}
 ```
 
-Import `github.com/uchaloop/confmaker` for the loader or
-`github.com/uchaloop/confx` for the Fx adapter.
+No `app.Start` is needed to inspect configuration values: loading already
+happened during construction. In a real app, unrelated constructors can run
+during `fx.New`; this is not a general-purpose dry-run mode.
 
-</details>
+## Manifest and documentation
 
-## Related libraries
+Manifest and export APIs belong to confmaker. See its
+[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-configuration-documentation)
+for `.env.example`, JSON and Markdown generation.
 
-| Library | Purpose |
-|---|---|
-| [confmaker](https://github.com/uchaloop/confmaker) | ENV tags, validation, manifest and dump |
-| [jobfx](https://github.com/uchaloop/jobfx) | One-shot work through Fx |
-| [beatfx](https://github.com/uchaloop/beatfx) | Recurring work through Fx |
+confx does not currently expose a manifest-only mode for a list of Provide
+options. Do not construct an entire Fx application just to extract metadata:
+use the core APIs for standalone descriptions. The simple Provide API remains
+the application registration entry point.
+
+## Reference
+
+- [confx GoDoc](https://pkg.go.dev/github.com/uchaloop/confx): adapter API.
+- [confmaker README](https://github.com/uchaloop/confmaker#readme): tags, secrets, errors and loading rules.
+- [Changelog](CHANGELOG.md): release and migration notes.
 
 ## Acknowledgements
 
 Thanks to the authors and maintainers of [Uber Fx](https://github.com/uber-go/fx)
-for dependency injection and lifecycle primitives that make this adapter possible.
+for its dependency injection and lifecycle primitives.
 
 ## License
 

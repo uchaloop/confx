@@ -16,8 +16,6 @@ type StoreConfig struct {
 	Timeout time.Duration `env:"TIMEOUT"`
 }
 
-func (StoreConfig) ConfigName() string { return "store" }
-
 func (c *StoreConfig) SetDefaults() { c.Timeout = 30 * time.Second }
 
 // Provide makes the config available to constructors. WithEnv stands in for the
@@ -28,7 +26,7 @@ func Example() {
 	app := fx.New(
 		fx.NopLogger,
 		confx.Module(env),
-		confx.Provide[StoreConfig](),
+		confx.Provide[StoreConfig]("store"),
 		fx.Invoke(func(cfg StoreConfig) {
 			fmt.Println(cfg.Host, cfg.Timeout)
 		}),
@@ -59,7 +57,7 @@ func ExampleProvideNamed() {
 	app := fx.New(
 		fx.NopLogger,
 		confx.Module(env),
-		confx.Provide[StoreConfig](),
+		confx.Provide[StoreConfig]("store"),
 		confx.ProvideNamed[StoreConfig]("replica", confmaker.WithPrefix("REPLICA_STORE_")),
 		fx.Invoke(func(p params) {
 			fmt.Println(p.Primary.Host, p.Replica.Host)
