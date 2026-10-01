@@ -33,14 +33,12 @@ type namedConfig struct {
 	Host string `env:"HOST,notEmpty"`
 }
 
-func (namedConfig) ConfigName() string { return "confxdefault" }
-
 func TestProvideWithoutModuleFailsTheStart(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]fx.Option{
-		"unused":   Provide[loaderConfig](confmaker.WithName("confxloader")),
-		"consumed": fx.Options(Provide[loaderConfig](confmaker.WithName("confxloader")), fx.Invoke(func(loaderConfig) {})),
+		"unused":   Provide[loaderConfig]("confxloader"),
+		"consumed": fx.Options(Provide[loaderConfig]("confxloader"), fx.Invoke(func(loaderConfig) {})),
 		"named":    ProvideNamed[loaderConfig]("confxloader"),
 	}
 
@@ -57,7 +55,7 @@ func TestProvideWithoutModuleFailsTheStart(t *testing.T) {
 func TestModuleChecksAnUnusedConfig(t *testing.T) {
 	t.Parallel()
 
-	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(nil)), Provide[loaderConfig](confmaker.WithName("confxloader"))).Err()
+	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(nil)), Provide[loaderConfig]("confxloader")).Err()
 	if err == nil || !strings.Contains(err.Error(), `config "confxloader": required variable "CONFXLOADER_HOST" is not set`) {
 		t.Fatalf("an unused config went unchecked: %v", err)
 	}
@@ -74,9 +72,9 @@ func TestModuleReportsEveryConfigAndTypoAtOnce(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		Module(confmaker.WithEnv(env)),
-		Provide[loaderConfig](confmaker.WithName("confxloader")),
-		Provide[loaderOtherConfig](confmaker.WithName("confxother")),
-		Provide[unnamedConfig](),
+		Provide[loaderConfig]("confxloader"),
+		Provide[loaderOtherConfig]("confxother"),
+		Provide[unnamedConfig](""),
 		fx.Invoke(func(loaderConfig) {}),
 	).Err()
 	if err == nil {
@@ -84,7 +82,7 @@ func TestModuleReportsEveryConfigAndTypoAtOnce(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`config confx.unnamedConfig has no instance name`,
+		`an instance name is required`,
 		`unknown configuration variable "CONFXLOADER_HSOT" (did you mean "CONFXLOADER_HOST"?)`,
 		`config "confxloader": required variable "CONFXLOADER_HOST" is not set`,
 		`config "confxother": variable "CONFXOTHER_PORT"`,
@@ -104,8 +102,8 @@ func TestModuleReportDoesNotDependOnRegistrationOrder(t *testing.T) {
 
 	var reports []string
 	for _, options := range [][]fx.Option{
-		{Module(confmaker.WithEnv(env)), Provide[loaderConfig](confmaker.WithName("confxloader")), Provide[loaderOtherConfig](confmaker.WithName("confxother"))},
-		{fx.Invoke(func(loaderOtherConfig) {}), Provide[loaderOtherConfig](confmaker.WithName("confxother")), Provide[loaderConfig](confmaker.WithName("confxloader")), Module(confmaker.WithEnv(env))},
+		{Module(confmaker.WithEnv(env)), Provide[loaderConfig]("confxloader"), Provide[loaderOtherConfig]("confxother")},
+		{fx.Invoke(func(loaderOtherConfig) {}), Provide[loaderOtherConfig]("confxother"), Provide[loaderConfig]("confxloader"), Module(confmaker.WithEnv(env))},
 	} {
 		err := fx.New(append([]fx.Option{fx.NopLogger}, options...)...).Err()
 		if err == nil {
@@ -131,7 +129,7 @@ func TestModuleLoadsOnceForEveryConsumer(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		fx.Invoke(func(cfg loaderConfig) { first = cfg }),
-		Provide[loaderConfig](confmaker.WithName("confxloader")),
+		Provide[loaderConfig]("confxloader"),
 		Module(confmaker.WithDump(&out), confmaker.WithEnv(map[string]string{"CONFXLOADER_HOST": "db"})),
 		fx.Invoke(func(cfg loaderConfig) { second = cfg }),
 	).Err()
@@ -151,7 +149,7 @@ func TestModuleWritesTheDumpBeforeAFailingLoad(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		fx.Invoke(func(loaderConfig) {}),
-		Provide[loaderConfig](confmaker.WithName("confxloader")),
+		Provide[loaderConfig]("confxloader"),
 		Module(confmaker.WithDump(&out), confmaker.WithEnv(nil)),
 	).Err()
 	if err == nil {
@@ -170,7 +168,7 @@ func TestModuleRegisteredTwiceFailsTheStart(t *testing.T) {
 		"CONFXLOADER_HOST": "db",
 	}
 
-	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(env)), Module(confmaker.WithEnv(env)), Provide[loaderConfig](confmaker.WithName("confxloader"))).Err()
+	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(env)), Module(confmaker.WithEnv(env)), Provide[loaderConfig]("confxloader")).Err()
 	if err == nil {
 		t.Fatal("a second Module was accepted")
 	}
@@ -196,7 +194,7 @@ func TestProvideNamedTagsInstance(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		Module(confmaker.WithEnv(env)),
-		Provide[namedConfig](),
+		Provide[namedConfig]("confxdefault"),
 		ProvideNamed[namedConfig]("replica", confmaker.WithPrefix("CONFXREPLICA_POSTGRES_")),
 		ProvideNamed[namedConfig]("custom", confmaker.WithPrefix("CONFXCUSTOM_")),
 		fx.Invoke(func(c configs) { got = c }),
@@ -210,16 +208,52 @@ func TestProvideNamedTagsInstance(t *testing.T) {
 	}
 }
 
-func TestProvideNamedRefusesASecondName(t *testing.T) {
+func TestProvidersRejectInvalidNames(t *testing.T) {
 	t.Parallel()
 
-	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(nil)), ProvideNamed[namedConfig]("replica", confmaker.WithName("other"))).Err()
-	if err == nil || !strings.Contains(err.Error(), "instance name more than once") {
-		t.Fatalf("got %v", err)
+	for providerName, provider := range map[string]func(string, ...confmaker.ConfigOption) fx.Option{
+		"Provide":      Provide[namedConfig],
+		"ProvideNamed": ProvideNamed[namedConfig],
+	} {
+		for _, tc := range []struct {
+			name         string
+			instanceName string
+			opts         []confmaker.ConfigOption
+			want         string
+		}{
+			{"empty", "", nil, "an instance name is required"},
+			{"invalid", "UPPER", nil, "may hold only lowercase"},
+		} {
+			t.Run(providerName+"/"+tc.name, func(t *testing.T) {
+				err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(nil)), provider(tc.instanceName, tc.opts...)).Err()
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("got %v, want %q", err, tc.want)
+				}
+			})
+		}
 	}
 }
 
-func TestWithNameAddsNoFxTag(t *testing.T) {
+func TestProvidePrefixOverridePreservesInstanceName(t *testing.T) {
+	t.Parallel()
+
+	var got namedConfig
+	var dump bytes.Buffer
+	err := fx.New(
+		fx.NopLogger,
+		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDump(&dump)),
+		Provide[namedConfig]("primary", confmaker.WithPrefix("CUSTOM_")),
+		fx.Populate(&got),
+	).Err()
+	if err != nil || got.Host != "db" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if !strings.Contains(dump.String(), "primary") || !strings.Contains(dump.String(), "CUSTOM_HOST") {
+		t.Fatalf("instance name or prefix lost: %s", dump.String())
+	}
+}
+
+func TestProvideNameAddsNoFxTag(t *testing.T) {
 	t.Parallel()
 
 	env := map[string]string{
@@ -227,7 +261,7 @@ func TestWithNameAddsNoFxTag(t *testing.T) {
 	}
 
 	var got namedConfig
-	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(env)), Provide[namedConfig](confmaker.WithName("confxcustom")), fx.Populate(&got)).Err()
+	err := fx.New(fx.NopLogger, Module(confmaker.WithEnv(env)), Provide[namedConfig]("confxcustom"), fx.Populate(&got)).Err()
 	if err != nil || got.Host != "custom" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -236,7 +270,7 @@ func TestWithNameAddsNoFxTag(t *testing.T) {
 func TestProvideReusedAcrossAppsDoesNotShareValues(t *testing.T) {
 	t.Parallel()
 
-	option := Provide[loaderConfig](confmaker.WithName("confxloader"))
+	option := Provide[loaderConfig]("confxloader")
 
 	var first loaderConfig
 	firstEnv := confmaker.WithEnv(map[string]string{"CONFXLOADER_HOST": "first"})
@@ -262,7 +296,7 @@ func TestModuleReadsWithEnv(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		Module(confmaker.WithEnv(map[string]string{"CONFXLOADER_HOST": "from the map"})),
-		Provide[loaderConfig](confmaker.WithName("confxloader")),
+		Provide[loaderConfig]("confxloader"),
 		fx.Populate(&got),
 	).Err()
 	if err != nil || got.Host != "from the map" {
