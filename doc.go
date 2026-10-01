@@ -16,7 +16,7 @@ WithPrefix.
 	)
 
 [Module] creates one confmaker.Loader per application and is required once when
-configs are registered. [Provide] passes the explicit instance name to the core
+configs are registered, unless [FromLoader] supplies an existing loader instead. [Provide] passes the explicit instance name to the core
 and provides the result without an Fx tag. [ProvideNamed] additionally uses that
 name as the Fx tag name:"<name>". confmaker validates names, derives ENV prefixes
 and loads the configurations; the adapter handles their registration in Fx.
@@ -44,6 +44,28 @@ Inspect construction errors with app.Err(). Core ConfigError diagnostics remain
 reachable through confmaker.ConfigErrors and errors.As. Missing Module or
 conflicting Fx providers are adapter or Fx errors, not core config diagnostics.
 Loaded configs should be treated as read-only, including their maps and slices.
+
+# External registrations
+
+[FromLoader] uses a caller-owned confmaker.Loader. [FromHandle] and
+[FromHandleNamed] provide existing handles without registering them again. A
+named handle uses Handle.Name as its Fx tag. All handles must belong to the same
+loader. Exactly one Module or FromLoader may be installed.
+
+For offline documentation, register configs externally and generate the manifest
+before fx.New. Normal startup can then use Run or explicit Start/Stop. Module accepts only Provide/ProvideNamed, while FromLoader accepts only
+FromHandle/FromHandleNamed. Mixing modes or supplying a foreign handle fails
+before registrations or loading and leaves the external loader unchanged.
+Previously loaded loaders retain their results. Reusing an external loader across apps shares its load state and
+values. The adapter does not interpret command-line flags or exit the process.
+
+# Load diagnostics
+
+Pass confmaker.WithDiagnosticHandler to Module to process a value-free report
+before a loading error reaches Fx, preserving fx.New(...).Run(). For explicit
+inspection, pass confmaker.WithDiagnostics and read the receiver after fx.New,
+before Run. External loaders accept the same core options. If Fx rejects the
+graph before loading, the handler is not called and the receiver stays not started.
 
 # Core library
 

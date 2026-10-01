@@ -6,12 +6,11 @@
 Fx consumers. [confmaker](https://github.com/uchaloop/confmaker) owns defaults,
 ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
 
-[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Testing](#testing) · [Reference](#reference)
+[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Reference](#reference)
 
 ## Installation
 
-Requires **Go 1.27 or later** and confmaker **v0.8.0**. This README describes
-the **v0.2.0** API.
+Requires **Go 1.27 or later**. The command below installs the tagged release.
 
 ```sh
 go get github.com/uchaloop/confx@v0.2.0
@@ -102,7 +101,7 @@ Fx even if their instance names differ. `WithPrefix` never changes the Fx tag.
 
 ## Lifecycle and errors
 
-Include `confx.Module()` exactly once when using Provide or ProvideNamed.
+Include exactly one `confx.Module()` or `confx.FromLoader(loader)`.
 All provided configs load during `fx.New`, including those with no consumers.
 A core loading error is available through `app.Err()` and prevents startup.
 
@@ -121,6 +120,39 @@ Always handle the original error: missing Module and Fx dependency conflicts are
 not core `ConfigError` diagnostics. Config values should be treated as read-only.
 Provider options may be reused across applications; each app receives its own
 loader and values.
+
+## Load diagnostics
+
+Use the core handler option to process a value-free report before Fx receives a
+configuration loading error, while keeping `fx.New(...).Run()`:
+
+```go
+fx.New(
+    confx.Module(
+        confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
+            // Format the report with your application's logger.
+        }),
+    ),
+    confx.Provide[ServerConfig]("server"),
+).Run()
+```
+
+The handler runs once during configuration loading in `fx.New`, on success or
+error. It receives sources, statuses and structured categories, without values or
+error messages. Loading panics propagate and skip the handler. No automatic
+logging or additional Fx adapter is involved.
+
+For explicit inspection after `app := fx.New(...)`, create
+`diagnostics := confmaker.MakeDiagnostics()`, pass
+`confmaker.WithDiagnostics(diagnostics)` to `Module`, and read
+`diagnostics.Report()` before calling `Run`. Reading it after `Run` is unsuitable
+for startup errors because Fx may terminate the process.
+
+In external-loader mode, pass these options to `confmaker.MakeLoader` and use
+`FromLoader` as usual. If Fx rejects the graph or registration mode before loading
+begins, there is no load report: the receiver remains `LoadNotStarted` and the
+handler is not called. Inspect `app.Err()` for those Fx errors. Each Diagnostics
+receiver belongs to one loader; use a fresh receiver for each ordinary Module app.
 
 ## Testing
 
@@ -151,16 +183,79 @@ No `app.Start` is needed to inspect configuration values: loading already
 happened during construction. In a real app, unrelated constructors can run
 during `fx.New`; this is not a general-purpose dry-run mode.
 
-## Manifest and documentation
+## External loader and manifest
 
-Manifest and export APIs belong to confmaker. See its
-[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-configuration-documentation)
-for `.env.example`, JSON and Markdown generation.
+The simple Module + Provide API remains the default. For documentation generation
+without reading ENV or constructing services, register configurations in the core
+before creating Fx, then bridge their handles into the application:
 
-confx does not currently expose a manifest-only mode for a list of Provide
-options. Do not construct an entire Fx application just to extract metadata:
-use the core APIs for standalone descriptions. The simple Provide API remains
-the application registration entry point.
+```go
+package main
+
+import (
+    "flag"
+    "log"
+    "os"
+
+    "github.com/uchaloop/confmaker"
+    "github.com/uchaloop/confx"
+    "go.uber.org/fx"
+)
+
+type ServerConfig struct {
+    Port int `env:"PORT,required"`
+}
+
+func main() {
+    describe := flag.Bool("describe", false, "Print configuration documentation")
+    flag.Parse()
+
+    loader := confmaker.MakeLoader()
+    server := loader.Register[ServerConfig]("server")
+
+    if *describe {
+        if err := loader.WriteManifestMarkdown(os.Stdout); err != nil {
+            log.Fatal(err)
+        }
+        return
+    }
+
+    fx.New(
+        confx.FromLoader(loader),
+        confx.FromHandle(server),
+        fx.Invoke(func(cfg ServerConfig) { log.Printf("server port: %d", cfg.Port) }),
+        // Add runtime modules here.
+    ).Run()
+}
+```
+
+`go run . -describe` completes before `fx.New`; required ENV is not needed.
+Normal startup loads during `fx.New`. Either Run or explicit Start/Stop is valid:
+separating description from application construction is what matters.
+
+| Adapter | Purpose |
+|---|---|
+| `FromLoader(loader)` | Use an existing loader instead of Module |
+| `FromHandle(handle)` | Provide an existing registration as an untagged value |
+| `FromHandleNamed(handle)` | Provide it with its registration name as the Fx tag |
+
+All registrations load, even when no handle has a consumer. Handles must belong
+to the supplied loader; nil, zero and foreign handles fail construction.
+An already-loaded loader reuses its result. Reusing an external loader across
+apps also shares its values and load state; create separate loaders for isolation.
+
+The two modes cannot be mixed: Module accepts only Provide/ProvideNamed;
+FromLoader accepts only FromHandle/FromHandleNamed. Mode and handle ownership
+checks finish before any registration or loading. Invalid connections leave the
+external loader unchanged, so a corrected connection can reuse it. Once Load
+has run, its result remains final as usual.
+
+Register every config outside Fx in the extended mode. The manifest generated
+before fx.New then describes the complete registration set.
+
+For export formats and guarantees, see the core
+[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-configuration-documentation).
+The adapters do not parse flags or terminate the process.
 
 ## Reference
 
