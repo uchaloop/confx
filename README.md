@@ -10,7 +10,7 @@ ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
 
 ## Installation
 
-Requires **Go 1.27 or later**. The command below installs the latest stable release.
+Requires **Go 1.27.0 or later**. The command below installs the latest stable release.
 This README describes the current branch; for a pinned release, use its tagged documentation.
 
 ```sh
@@ -26,7 +26,7 @@ Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`
 
 ## Core version and compatibility
 
-This version uses **confmaker v1.0.0**. confx has its own versioning and remains
+This version uses **confmaker v1.0.1**. confx has its own versioning and remains
 on **v0.x**; a stable core does not imply a stable adapter API.
 
 When upgrading from confx v0.3.0, remove any `confmaker.WithDump` options.
@@ -37,8 +37,12 @@ Text types use `UnmarshalText` / `MarshalText` even when they also implement JSO
 methods; exporting their defaults requires `MarshalText`.
 
 `Module`, `Provide`, `ProvideNamed` and the external-loader adapters keep their
-existing signatures. See the [core v1.0.0 documentation](https://github.com/uchaloop/confmaker/tree/v1.0.0)
+existing signatures. See the [core v1.0.1 documentation](https://github.com/uchaloop/confmaker/tree/v1.0.1)
 for the full configuration rules.
+
+The dependency update also brings `secret/v2` v2.1.0: `Secret` is no longer
+comparable or usable as a map key, and JSON `null` clears it. Use `IsZero()`
+for emptiness checks.
 
 ## Quick start
 

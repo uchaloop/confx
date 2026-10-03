@@ -2,7 +2,7 @@
 Package confx adapts github.com/uchaloop/confmaker to Uber Fx. The application
 explicitly registers its package configs; confmaker owns ENV parsing, defaults,
 validation and diagnostics, while confx provides the resulting typed values.
-This adapter uses confmaker v1.0.0 and retains independent v0.x versioning.
+This adapter uses confmaker v1.0.1 and retains independent v0.x versioning.
 
 Import github.com/uchaloop/confx for registration and
 github.com/uchaloop/confmaker when using core options such as WithEnv or
