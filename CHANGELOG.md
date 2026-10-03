@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-03
+
 - Updated confmaker to v1.0.1 and secret/v2 to v2.1.0; adapter APIs are unchanged.
 - **Compatibility:** `Secret` is no longer comparable; JSON `null` clears it.
 - Set the minimum Go version to 1.27.0 and updated documentation.
@@ -38,7 +40,8 @@
 - Initial standalone release of the confx Uber Fx adapter.
 - Independent module, dependencies, tests and release workflow.
 
-[Unreleased]: https://github.com/uchaloop/confx/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/uchaloop/confx/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/uchaloop/confx/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/uchaloop/confx/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/uchaloop/confx/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/uchaloop/confx/compare/v0.1.0...v0.2.0
