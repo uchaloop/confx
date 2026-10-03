@@ -4,8 +4,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-github.com/uchaloop/confmaker v0.9.0 h1:GRakv9K92TrV55TrVq+RtIAEfehns8t7MjH5X/85qb8=
-github.com/uchaloop/confmaker v0.9.0/go.mod h1:KtdOpG3kj4TMjKTHP+WYcNblY5RwlT8L1rgp80STCVE=
+github.com/uchaloop/confmaker v1.0.0 h1:9c/WSqluKNWtg4d2HfWp8/yGDyDJl6AMpSZ/jf6f6ZQ=
+github.com/uchaloop/confmaker v1.0.0/go.mod h1:KtdOpG3kj4TMjKTHP+WYcNblY5RwlT8L1rgp80STCVE=
 github.com/uchaloop/secret/v2 v2.0.2 h1:3SqNlD46M0prgAfImWjUA8L0kTNsDGssAaacvVcVk1Y=
 github.com/uchaloop/secret/v2 v2.0.2/go.mod h1:6WSKO6ivz7Fh0nHfVhrkC1JAgCqP8fIU23wxQ5dS6+o=
 github.com/uchaloop/utilfx v0.2.0 h1:BPPVIKvs52t1Bc0Syl+kmclxOyVadw+3fLbzYa493hE=
