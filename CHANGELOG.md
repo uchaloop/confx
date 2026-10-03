@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Updated confmaker to v1.0.1 and secret/v2 to v2.1.0; adapter APIs are unchanged.
+- **Compatibility:** `Secret` is no longer comparable; JSON `null` clears it.
+- Set the minimum Go version to 1.27.0 and updated documentation.
+
 ## [0.4.0] - 2026-10-03
 
 - Updated confmaker to v1.0.0; confx remains on the independent v0.x release line.

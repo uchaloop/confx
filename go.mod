@@ -1,10 +1,10 @@
 module github.com/uchaloop/confx
 
-go 1.27
+go 1.27.0
 
 require (
-	github.com/uchaloop/confmaker v1.0.0
-	github.com/uchaloop/secret/v2 v2.0.2
+	github.com/uchaloop/confmaker v1.0.1
+	github.com/uchaloop/secret/v2 v2.1.0
 	github.com/uchaloop/utilfx v0.2.0
 	go.uber.org/fx v1.24.0
 )
