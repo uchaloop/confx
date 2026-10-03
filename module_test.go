@@ -1,7 +1,6 @@
 package confx
 
 import (
-	"bytes"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -124,40 +123,20 @@ func TestModuleReportDoesNotDependOnRegistrationOrder(t *testing.T) {
 func TestModuleLoadsOnceForEveryConsumer(t *testing.T) {
 	loaderDefaultCalls.Store(0)
 
-	var out bytes.Buffer
 	var first, second loaderConfig
 	err := fx.New(
 		fx.NopLogger,
 		fx.Invoke(func(cfg loaderConfig) { first = cfg }),
 		Provide[loaderConfig]("confxloader"),
-		Module(confmaker.WithDump(&out), confmaker.WithEnv(map[string]string{"CONFXLOADER_HOST": "db"})),
+		Module(confmaker.WithEnv(map[string]string{"CONFXLOADER_HOST": "db"})),
 		fx.Invoke(func(cfg loaderConfig) { second = cfg }),
 	).Err()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if first.Host != "db" || second.Host != "db" || loaderDefaultCalls.Load() != 1 || !strings.Contains(out.String(), "CONFXLOADER_HOST") {
-		t.Fatalf("first %+v, second %+v, defaults calls %d, dump:\n%s", first, second, loaderDefaultCalls.Load(), out.String())
-	}
-}
-
-func TestModuleWritesTheDumpBeforeAFailingLoad(t *testing.T) {
-	t.Parallel()
-
-	var out bytes.Buffer
-	err := fx.New(
-		fx.NopLogger,
-		fx.Invoke(func(loaderConfig) {}),
-		Provide[loaderConfig]("confxloader"),
-		Module(confmaker.WithDump(&out), confmaker.WithEnv(nil)),
-	).Err()
-	if err == nil {
-		t.Fatal("expected the start to fail")
-	}
-
-	if !strings.Contains(out.String(), "CONFXLOADER_HOST") {
-		t.Fatalf("dump not written:\n%s", out.String())
+	if first.Host != "db" || second.Host != "db" || loaderDefaultCalls.Load() != 1 {
+		t.Fatalf("first %+v, second %+v, defaults calls %d", first, second, loaderDefaultCalls.Load())
 	}
 }
 
@@ -238,18 +217,19 @@ func TestProvidePrefixOverridePreservesInstanceName(t *testing.T) {
 	t.Parallel()
 
 	var got namedConfig
-	var dump bytes.Buffer
+	diagnostics := confmaker.MakeDiagnostics()
 	err := fx.New(
 		fx.NopLogger,
-		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDump(&dump)),
+		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDiagnostics(diagnostics)),
 		Provide[namedConfig]("primary", confmaker.WithPrefix("CUSTOM_")),
 		fx.Populate(&got),
 	).Err()
 	if err != nil || got.Host != "db" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	if !strings.Contains(dump.String(), "primary") || !strings.Contains(dump.String(), "CUSTOM_HOST") {
-		t.Fatalf("instance name or prefix lost: %s", dump.String())
+	report := diagnostics.Report()
+	if len(report.Configs) != 1 || report.Configs[0].InstanceName != "primary" || report.Configs[0].Variables[0].Name != "CUSTOM_HOST" {
+		t.Fatalf("instance name or prefix lost: %+v", report)
 	}
 }
 

@@ -6,14 +6,15 @@
 Fx consumers. [confmaker](https://github.com/uchaloop/confmaker) owns defaults,
 ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
 
-[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Reference](#reference)
+[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Manifest](#external-loader-and-manifest) · [Reference](#reference)
 
 ## Installation
 
-Requires **Go 1.27 or later**. The command below installs the tagged release.
+Requires **Go 1.27 or later**. The command below installs the latest stable release.
+This README describes the current branch; for a pinned release, use its tagged documentation.
 
 ```sh
-go get github.com/uchaloop/confx@v0.2.0
+go get github.com/uchaloop/confx@latest
 ```
 
 ```go
@@ -21,7 +22,23 @@ import "github.com/uchaloop/confx"
 ```
 
 Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`,
-`WithPrefix` or `WithDump`.
+`WithPrefix` or `WithDiagnostics`.
+
+## Core version and compatibility
+
+This version uses **confmaker v1.0.0**. confx has its own versioning and remains
+on **v0.x**; a stable core does not imply a stable adapter API.
+
+When upgrading from confx v0.3.0, remove any `confmaker.WithDump` options.
+Use manifest exports for configuration declarations and diagnostics for load
+sources and results. JSON configuration fields now accept collections of
+supported values, including text types, but not ordinary structs at any depth.
+Text types use `UnmarshalText` / `MarshalText` even when they also implement JSON
+methods; exporting their defaults requires `MarshalText`.
+
+`Module`, `Provide`, `ProvideNamed` and the external-loader adapters keep their
+existing signatures. See the [core v1.0.0 documentation](https://github.com/uchaloop/confmaker/tree/v1.0.0)
+for the full configuration rules.
 
 ## Quick start
 
@@ -118,8 +135,9 @@ if err := app.Err(); err != nil {
 
 Always handle the original error: missing Module and Fx dependency conflicts are
 not core `ConfigError` diagnostics. Config values should be treated as read-only.
-Provider options may be reused across applications; each app receives its own
-loader and values.
+With `Module`, `Provide` and `ProvideNamed` options may be reused across
+applications; each app receives its own loader and values. External loaders
+retain shared values and load state, as described below.
 
 ## Load diagnostics
 
@@ -207,14 +225,14 @@ type ServerConfig struct {
 }
 
 func main() {
-    describe := flag.Bool("describe", false, "Print configuration documentation")
+    describe := confmaker.MakeDescribeFlag(flag.CommandLine)
     flag.Parse()
 
     loader := confmaker.MakeLoader()
     server := loader.Register[ServerConfig]("server")
 
-    if *describe {
-        if err := loader.WriteManifestMarkdown(os.Stdout); err != nil {
+    if describe.Requested() {
+        if err := describe.Write(loader, os.Stdout); err != nil {
             log.Fatal(err)
         }
         return
@@ -229,7 +247,8 @@ func main() {
 }
 ```
 
-`go run . -describe` completes before `fx.New`; required ENV is not needed.
+`go run . -describe=markdown` completes before `fx.New`; required ENV is not
+needed. Use `-describe=env` or `-describe=json` for the other export formats.
 Normal startup loads during `fx.New`. Either Run or explicit Start/Stop is valid:
 separating description from application construction is what matters.
 

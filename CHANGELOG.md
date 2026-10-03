@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+- Updated confmaker to v1.0.0; confx remains on the independent v0.x release line.
+- **Breaking:** the core no longer provides `WithDump`. Use manifest for
+  declarations and diagnostics for value-free load reports.
+- **Breaking:** core JSON fields accept collections and scalar text types,
+  rejecting ordinary structs at every depth. Text methods take precedence over
+  JSON methods; defaults without `MarshalText` fail manifest rendering.
+- Updated usage and manifest examples for the v1 core. Fx registration APIs
+  remain unchanged.
+
 ## [0.3.0] - 2026-10-01
 
 - Added `FromLoader`, `FromHandle` and `FromHandleNamed` for external registrations
@@ -23,7 +34,8 @@
 - Initial standalone release of the confx Uber Fx adapter.
 - Independent module, dependencies, tests and release workflow.
 
-[Unreleased]: https://github.com/uchaloop/confx/compare/v0.3.0...HEAD
-[0.2.0]: https://github.com/uchaloop/confx/compare/v0.2.0...v0.3.0
+[Unreleased]: https://github.com/uchaloop/confx/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/uchaloop/confx/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/uchaloop/confx/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/uchaloop/confx/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/uchaloop/confx/releases/tag/v0.1.0
