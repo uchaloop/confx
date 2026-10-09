@@ -1,3 +1,5 @@
+> This branch targets the unpublished confmaker v2 API. See the core migration guide for release order.
+
 # confx
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/uchaloop/confx.svg)](https://pkg.go.dev/github.com/uchaloop/confx) [![CI](https://github.com/uchaloop/confx/actions/workflows/ci.yml/badge.svg)](https://github.com/uchaloop/confx/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/tag/uchaloop/confx?label=release)](https://github.com/uchaloop/confx/tags) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -26,7 +28,7 @@ Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`
 
 ## Core version and compatibility
 
-This version uses **confmaker v1.0.1**. confx has its own versioning and remains
+This version uses **confmaker v2 development API**. confx has its own versioning and remains
 on **v0.x**; a stable core does not imply a stable adapter API.
 
 When upgrading from confx v0.3.0, remove any `confmaker.WithDump` options.
@@ -145,36 +147,11 @@ retain shared values and load state, as described below.
 
 ## Load diagnostics
 
-Use the core handler option to process a value-free report before Fx receives a
-configuration loading error, while keeping `fx.New(...).Run()`:
-
-```go
-fx.New(
-    confx.Module(
-        confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
-            // Format the report with your application's logger.
-        }),
-    ),
-    confx.Provide[ServerConfig]("server"),
-).Run()
-```
-
-The handler runs once during configuration loading in `fx.New`, on success or
-error. It receives sources, statuses and structured categories, without values or
-error messages. Loading panics propagate and skip the handler. No automatic
-logging or additional Fx adapter is involved.
-
-For explicit inspection after `app := fx.New(...)`, create
-`diagnostics := confmaker.MakeDiagnostics()`, pass
-`confmaker.WithDiagnostics(diagnostics)` to `Module`, and read
-`diagnostics.Report()` before calling `Run`. Reading it after `Run` is unsuitable
-for startup errors because Fx may terminate the process.
-
-In external-loader mode, pass these options to `confmaker.MakeLoader` and use
-`FromLoader` as usual. If Fx rejects the graph or registration mode before loading
-begins, there is no load report: the receiver remains `LoadNotStarted` and the
-handler is not called. Inspect `app.Err()` for those Fx errors. Each Diagnostics
-receiver belongs to one loader; use a fresh receiver for each ordinary Module app.
+Use `confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) { ... })`
+with Module for a value-free report during app construction, including load errors.
+With an external loader, `WithDiagnostics()` enables `loader.Report()` snapshots.
+The loader owns the report; there is no separate receiver. Callbacks run after
+publication and do not run for loading panics.
 
 ## Testing
 
@@ -219,7 +196,8 @@ import (
     "log"
     "os"
 
-    "github.com/uchaloop/confmaker"
+    "github.com/uchaloop/confmaker/v2"
+    "github.com/uchaloop/confmaker/v2/confcli"
     "github.com/uchaloop/confx"
     "go.uber.org/fx"
 )
@@ -229,14 +207,16 @@ type ServerConfig struct {
 }
 
 func main() {
-    describe := confmaker.MakeDescribeFlag(flag.CommandLine)
+    describe := confcli.MakeDescribeFlag(flag.CommandLine)
     flag.Parse()
 
     loader := confmaker.MakeLoader()
     server := loader.Register[ServerConfig]("server")
 
     if describe.Requested() {
-        if err := describe.Write(loader, os.Stdout); err != nil {
+        manifest, err := loader.Manifest(confmaker.IncludeDefaults())
+        if err != nil { return err }
+        if err := describe.Write(os.Stdout, manifest); err != nil {
             log.Fatal(err)
         }
         return

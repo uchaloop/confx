@@ -64,7 +64,7 @@ values. The adapter does not interpret command-line flags or exit the process.
 
 Pass confmaker.WithDiagnosticHandler to Module to process a value-free report
 before a loading error reaches Fx, preserving fx.New(...).Run(). For explicit
-inspection, pass confmaker.WithDiagnostics and read the receiver after fx.New,
+inspection, enable confmaker.WithDiagnostics() on an external loader and read loader.Report after fx.New,
 before Run. External loaders accept the same core options. If Fx rejects the
 graph before loading, the handler is not called and the receiver stays not started.
 

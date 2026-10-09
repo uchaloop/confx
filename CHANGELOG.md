@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Prepare migration to confmaker/v2 and its loader-owned reports and pure exporters.
+
 ## [0.4.1] - 2026-10-03
 
 - Updated confmaker to v1.0.1 and secret/v2 to v2.1.0; adapter APIs are unchanged.
