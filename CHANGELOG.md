@@ -2,10 +2,11 @@
 
 ## [Unreleased]
 
+Target release: **0.5.0** (Git tag `v0.5.0`; not yet released).
+
 - **Breaking:** Module now accepts `confmaker.LoaderOption` (renamed from EnvOption).
 - Support application-supplied engines through core options in both registration
   modes, without new dependencies or an adapter-specific engine API.
-
 
 - **Breaking:** adopt `github.com/uchaloop/confmaker/v2`; core options, loaders and
   handles from v1 are no longer compatible. Fx registration function names remain
