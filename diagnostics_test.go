@@ -17,7 +17,7 @@ func TestDiagnosticsBeforeFxStartup(t *testing.T) {
 			if valid {
 				env["APP_HOST"] = "localhost"
 			}
-			options := []confmaker.EnvOption{confmaker.WithEnv(env), confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
+			options := []confmaker.LoaderOption{confmaker.WithEnv(env), confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
 				callbackCalls++
 				captured = report
 				if loader != nil && report.State != loader.Report().State {
