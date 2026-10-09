@@ -60,6 +60,16 @@ before registrations or loading and leaves the external loader unchanged.
 Previously loaded loaders retain their results. Reusing an external loader across apps shares its load state and
 values. The adapter does not interpret command-line flags or exit the process.
 
+# Custom engines
+
+Module accepts confmaker.LoaderOption, including confmaker.WithEngine. An external
+loader can select the same backend. Every app has its own loader, but reusing a
+Module option shares the supplied Engine object, which must support concurrent
+calls across loaders. Its resources remain caller-owned. Loading still occurs
+at fx.New; this adapter adds no context or backend resource lifecycle.
+Custom engines provide config-level reports and do not support Loader.Manifest.
+Names accepted by the core remain subject to Fx named-tag restrictions.
+
 # Load diagnostics
 
 Pass confmaker.WithDiagnosticHandler to Module to process a value-free report

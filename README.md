@@ -263,3 +263,23 @@ for its dependency injection and lifecycle primitives.
 ## License
 
 [MIT](LICENSE)
+
+## Custom configuration engines
+
+Pass `confmaker.WithEngine(engine)` to `confx.Module`, or configure an external
+Loader before `FromLoader`. Module accepts `confmaker.LoaderOption`. Parsing and
+tags belong to the backend; Fx wiring is unchanged:
+
+```go
+confx.Module(confmaker.WithEngine(engine), confmaker.WithDiagnostics())
+```
+
+Each app gets its own Loader when Module options are reused, but the Engine object
+is shared: it must support concurrent calls across loaders. The caller owns its
+resources. Loading still occurs during fx.New with the ordinary Load lifecycle;
+this adapter adds no cancellation or engine resource lifecycle. Arbitrary core
+registration names do not override Fx restrictions on named tags.
+
+Custom engines provide config-level reports and do not support Loader.Manifest.
+See the [core engine example](https://github.com/uchaloop/confmaker#custom-engines)
+for a dependency-free extension point and an application-level env/v11 adapter.
