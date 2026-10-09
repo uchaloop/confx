@@ -1,5 +1,3 @@
-> This branch targets the unpublished confmaker v2 API. See the core migration guide for release order.
-
 # confx
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/uchaloop/confx.svg)](https://pkg.go.dev/github.com/uchaloop/confx) [![CI](https://github.com/uchaloop/confx/actions/workflows/ci.yml/badge.svg)](https://github.com/uchaloop/confx/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/tag/uchaloop/confx?label=release)](https://github.com/uchaloop/confx/tags) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -28,14 +26,14 @@ Import `github.com/uchaloop/confmaker/v2` when using core options such as `WithE
 
 ## Core version and compatibility
 
-This version uses **confmaker v2 development API**. confx has its own versioning and remains
+This version uses **confmaker v2 API**. confx has its own versioning and remains
 on **v0.x**; a stable core does not imply a stable adapter API.
 
 When migrating, update all core imports and options/handles to v2. Internal
 Module loaders expose diagnostics through WithDiagnosticHandler; external loaders
 support WithDiagnostics() and Report(). Manifest defaults require IncludeDefaults,
-and exporters now consume a prepared result. Use the matching development core's
-README and docs/migration-v2.md for the complete contract and release order.
+and exporters now consume a prepared result. See the matching core version's
+README for the configuration contract.
 
 ## Quick start
 
