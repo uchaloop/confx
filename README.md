@@ -23,7 +23,7 @@ go get github.com/uchaloop/confx@latest
 import "github.com/uchaloop/confx"
 ```
 
-Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`,
+Import `github.com/uchaloop/confmaker/v2` when using core options such as `WithEnv`,
 `WithPrefix` or `WithDiagnostics`.
 
 ## Core version and compatibility
@@ -31,20 +31,11 @@ Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`
 This version uses **confmaker v2 development API**. confx has its own versioning and remains
 on **v0.x**; a stable core does not imply a stable adapter API.
 
-When upgrading from confx v0.3.0, remove any `confmaker.WithDump` options.
-Use manifest exports for configuration declarations and diagnostics for load
-sources and results. JSON configuration fields now accept collections of
-supported values, including text types, but not ordinary structs at any depth.
-Text types use `UnmarshalText` / `MarshalText` even when they also implement JSON
-methods; exporting their defaults requires `MarshalText`.
-
-`Module`, `Provide`, `ProvideNamed` and the external-loader adapters keep their
-existing signatures. See the [core v1.0.1 documentation](https://github.com/uchaloop/confmaker/tree/v1.0.1)
-for the full configuration rules.
-
-The dependency update also brings `secret/v2` v2.1.0: `Secret` is no longer
-comparable or usable as a map key, and JSON `null` clears it. Use `IsZero()`
-for emptiness checks.
+When migrating, update all core imports and options/handles to v2. Internal
+Module loaders expose diagnostics through WithDiagnosticHandler; external loaders
+support WithDiagnostics() and Report(). Manifest defaults require IncludeDefaults,
+and exporters now consume a prepared result. Use the matching development core's
+README and docs/migration-v2.md for the complete contract and release order.
 
 ## Quick start
 
@@ -215,7 +206,7 @@ func main() {
 
     if describe.Requested() {
         manifest, err := loader.Manifest(confmaker.IncludeDefaults())
-        if err != nil { return err }
+        if err != nil { log.Fatal(err) }
         if err := describe.Write(os.Stdout, manifest); err != nil {
             log.Fatal(err)
         }
