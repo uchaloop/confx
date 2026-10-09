@@ -52,7 +52,7 @@ type handleKey struct{ _ byte }
 //
 // Include exactly one Module or FromLoader. Module also checks its options
 // when no configs are registered.
-func Module(opts ...confmaker.EnvOption) fx.Option {
+func Module(opts ...confmaker.LoaderOption) fx.Option {
 	opts = slices.Clone(opts)
 	return makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)
 }
