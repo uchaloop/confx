@@ -1,11 +1,11 @@
 /*
-Package confx adapts github.com/uchaloop/confmaker to Uber Fx. The application
+Package confx adapts github.com/uchaloop/confmaker/v2 to Uber Fx. The application
 explicitly registers its package configs; confmaker owns ENV parsing, defaults,
 validation and diagnostics, while confx provides the resulting typed values.
-This adapter uses confmaker v1.0.1 and retains independent v0.x versioning.
+This adapter uses confmaker v2 and retains independent v0.x versioning.
 
 Import github.com/uchaloop/confx for registration and
-github.com/uchaloop/confmaker when using core options such as WithEnv or
+github.com/uchaloop/confmaker/v2 when using core options such as WithEnv or
 WithPrefix.
 
 # Registration
@@ -66,7 +66,7 @@ Pass confmaker.WithDiagnosticHandler to Module to process a value-free report
 before a loading error reaches Fx, preserving fx.New(...).Run(). For explicit
 inspection, enable confmaker.WithDiagnostics() on an external loader and read loader.Report after fx.New,
 before Run. External loaders accept the same core options. If Fx rejects the
-graph before loading, the handler is not called and the receiver stays not started.
+graph before loading, the handler is not called and an enabled loader report stays in the not_started state.
 
 # Core library
 
@@ -75,6 +75,6 @@ The core also works without Fx:
 	cfg, err := confmaker.Load[postgres.Config]("postgres")
 
 Declaring configs, options, the manifest and loading rules are documented in
-package github.com/uchaloop/confmaker.
+package github.com/uchaloop/confmaker/v2.
 */
 package confx

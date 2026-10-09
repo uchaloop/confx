@@ -246,7 +246,7 @@ Register every config outside Fx in the extended mode. The manifest generated
 before fx.New then describes the complete registration set.
 
 For export formats and guarantees, see the core
-[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-configuration-documentation).
+[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-exports).
 The adapters do not parse flags or terminate the process.
 
 ## Reference

@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-- Prepare migration to confmaker/v2 and its loader-owned reports and pure exporters.
+- **Breaking:** adopt `github.com/uchaloop/confmaker/v2`; core options, loaders and
+  handles from v1 are no longer compatible. Fx registration function names remain
+  unchanged, and confx retains independent versioning.
+- Use loader-owned reports in external-loader examples and diagnostic callbacks
+  for internally owned loaders. Preserve one loader per Fx application.
+- Update offline documentation examples to use explicit manifest defaults and
+  the separate `confcli` and `confexport` packages.
 
 ## [0.4.1] - 2026-10-03
 
