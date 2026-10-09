@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uchaloop/confmaker"
+	"github.com/uchaloop/confmaker/v2"
 	"github.com/uchaloop/secret/v2"
 	"go.uber.org/fx"
 )

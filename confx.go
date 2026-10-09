@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/uchaloop/confmaker"
+	"github.com/uchaloop/confmaker/v2"
 	"github.com/uchaloop/utilfx"
 	"go.uber.org/fx"
 )

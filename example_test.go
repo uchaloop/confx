@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uchaloop/confmaker"
+	"github.com/uchaloop/confmaker/v2"
 	"github.com/uchaloop/confx"
 	"go.uber.org/fx"
 )

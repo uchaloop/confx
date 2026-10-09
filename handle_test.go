@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uchaloop/confmaker"
+	"github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confmaker/v2/confexport"
 	"go.uber.org/fx"
 )
 
@@ -23,7 +24,11 @@ func TestExternalLoaderRegistrations(t *testing.T) {
 	replica := loader.Register[externalConfig]("replica", confmaker.WithPrefix("READ_"))
 	job := loader.Register[externalJob]("job")
 	var before bytes.Buffer
-	if err := loader.WriteManifestJSON(&before); err != nil {
+	snapshot, err := loader.Manifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := confexport.WriteJSON(&before, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := primary.Value(); !errors.Is(err, confmaker.ErrNotLoaded) {
@@ -44,7 +49,7 @@ func TestExternalLoaderRegistrations(t *testing.T) {
 		t.Fatalf("values: %+v", got)
 	}
 	manifest, err := loader.Manifest()
-	if err != nil || len(manifest) != 3 {
+	if err != nil || len(manifest.Configs) != 3 {
 		t.Fatalf("manifest: %v, %v", manifest, err)
 	}
 }
@@ -121,7 +126,7 @@ func TestMixedModesDoNotChangeExternalLoader(t *testing.T) {
 			t.Fatalf("mode error: %v", app.Err())
 		}
 		manifest, err := loader.Manifest()
-		if err != nil || len(manifest) != 1 {
+		if err != nil || len(manifest.Configs) != 1 {
 			t.Fatalf("loader mutated: %v %v", manifest, err)
 		}
 		if _, err := handle.Value(); !errors.Is(err, confmaker.ErrNotLoaded) {
