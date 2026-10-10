@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/uchaloop/confmaker"
+	"github.com/uchaloop/confmaker/v2"
 	"go.uber.org/fx"
 )
 
@@ -217,17 +217,16 @@ func TestProvidePrefixOverridePreservesInstanceName(t *testing.T) {
 	t.Parallel()
 
 	var got namedConfig
-	diagnostics := confmaker.MakeDiagnostics()
+	var report confmaker.LoadReport
 	err := fx.New(
 		fx.NopLogger,
-		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDiagnostics(diagnostics)),
+		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDiagnosticHandler(func(r confmaker.LoadReport) { report = r })),
 		Provide[namedConfig]("primary", confmaker.WithPrefix("CUSTOM_")),
 		fx.Populate(&got),
 	).Err()
 	if err != nil || got.Host != "db" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	report := diagnostics.Report()
 	if len(report.Configs) != 1 || report.Configs[0].InstanceName != "primary" || report.Configs[0].Variables[0].Name != "CUSTOM_HOST" {
 		t.Fatalf("instance name or prefix lost: %+v", report)
 	}

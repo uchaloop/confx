@@ -4,9 +4,9 @@
 
 **Explicit confmaker registration for Uber Fx.** confx provides typed configs to
 Fx consumers. [confmaker](https://github.com/uchaloop/confmaker) owns defaults,
-ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
+configuration engines, validation and diagnostics; the adapter owns wiring them into Fx.
 
-[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Manifest](#external-loader-and-manifest) · [Reference](#reference)
+[Install](#installation) · [Quick start](#quick-start) · [Modules](#modules-and-instances) · [Engines](#configuration-engines) · [Diagnostics](#errors-and-diagnostics) · [Manifest](#manifest-and-describe) · [Testing](#testing)
 
 ## Installation
 
@@ -21,108 +21,156 @@ go get github.com/uchaloop/confx@latest
 import "github.com/uchaloop/confx"
 ```
 
-Import `github.com/uchaloop/confmaker` when using core options such as `WithEnv`,
+Import `github.com/uchaloop/confmaker/v2` when using core options such as `WithEnv`,
 `WithPrefix` or `WithDiagnostics`.
 
-## Core version and compatibility
-
-This version uses **confmaker v1.0.1**. confx has its own versioning and remains
-on **v0.x**; a stable core does not imply a stable adapter API.
-
-When upgrading from confx v0.3.0, remove any `confmaker.WithDump` options.
-Use manifest exports for configuration declarations and diagnostics for load
-sources and results. JSON configuration fields now accept collections of
-supported values, including text types, but not ordinary structs at any depth.
-Text types use `UnmarshalText` / `MarshalText` even when they also implement JSON
-methods; exporting their defaults requires `MarshalText`.
-
-`Module`, `Provide`, `ProvideNamed` and the external-loader adapters keep their
-existing signatures. See the [core v1.0.1 documentation](https://github.com/uchaloop/confmaker/tree/v1.0.1)
-for the full configuration rules.
-
-The dependency update also brings `secret/v2` v2.1.0: `Secret` is no longer
-comparable or usable as a map key, and JSON `null` clears it. Use `IsZero()`
-for emptiness checks.
-
 ## Quick start
+
+A domain declares its config and exposes one module. The config itself needs no
+Fx-specific methods:
 
 ```go
 package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/uchaloop/confx"
 	"go.uber.org/fx"
 )
 
-type ServerConfig struct {
+type Config struct {
 	Port int `env:"PORT"`
 }
 
-func (c *ServerConfig) SetDefaults() { c.Port = 8080 }
+func (c *Config) SetDefaults() {
+	c.Port = 8080
+}
+
+type service struct {
+	port int
+}
+
+func makeService(cfg Config) *service {
+	return &service{port: cfg.Port}
+}
 
 func main() {
-	app := fx.New(
-		confx.Module(),
-		confx.Provide[ServerConfig]("server"),
-		fx.Invoke(func(cfg ServerConfig) {
-			fmt.Println(cfg.Port) // Pass the config to your server constructor.
-		}),
+	server := confx.MakeModule("server",
+		confx.Provide[Config]("server"),
+		confx.Runtime(
+			fx.Provide(makeService),
+			fx.Invoke(func(s *service) {
+				fmt.Println("server port:", s.port)
+			}),
+		),
 	)
-	if err := app.Err(); err != nil {
-		log.Fatal(err)
-	}
-	app.Run()
+
+	modules := confx.MakeModules(server)
+	fx.New(modules.FX()).Run()
 }
 ```
 
-Run with no ENV for the default `8080`, or set `SERVER_PORT` in your IDE or shell.
-The config type needs no dependency on either confmaker or Fx.
+The built-in engine uses `8080` by default or reads `SERVER_PORT`. In a real
+application, each domain exports its own `MakeModule` result; main lists those
+modules once. `FX()` installs the adapter, so no additional `confx.Module()` is
+needed. Service constructors consume config values normally.
 
-```mermaid
-flowchart LR
-    A["Provide / ProvideNamed"] --> B["Module: one core loader"]
-    B --> C["Register and load all configs during fx.New"]
-    C -->|Success| D["Typed values for consumers"]
-    C -->|Error| E["app.Err; startup prevented"]
-```
+## How it works
 
-## Multiple instances
+`Provide` and `ProvideNamed` preserve config declarations beside their Fx
+providers. `MakeModule` preserves nesting and scopes; `MakeModules` assembles the
+application. During `fx.New`, confmaker registers and loads all configurations,
+including unused ones, before any config value is provided to a consumer.
+
+Defaults, decoding, validation and reports belong to confmaker. confx owns Fx
+registration and typed injection. Loading happens before lifecycle `OnStart`;
+this adapter does not start engine resources or add cancellation to Fx construction.
+
+Use `Runtime` for ordinary providers, invocations and decorators. It marks the
+parts of the module tree that offline description must skip. It does not delay
+`fx.Invoke` until `Start`: normal Fx construction semantics still apply.
+
+## Modules and instances
+
+Nest `MakeModule` values to preserve Fx private-provider visibility and decorator
+scopes. A plain `fx.Module` hides declarations from offline inspection; use
+`MakeModule` on configuration-bearing branches and `Runtime` on service-only branches.
+
 
 An instance name, an ENV prefix and an Fx tag serve different purposes:
 
 | Concept | Source | Purpose |
 |---|---|---|
 | Instance name | First argument to Provide / ProvideNamed | Core registration identity and diagnostics |
-| ENV prefix | Derived from the name, or WithPrefix | Variable lookup |
+| ENV prefix (built-in engine) | Derived from the name, or WithPrefix | Variable lookup |
 | Fx name tag | ProvideNamed only | Select a named dependency |
 
-Using `ServerConfig` from the quick start, replace its registration with:
+Using `Config` from the quick start, replace its registration with:
 
 ```go
-confx.Provide[ServerConfig]("server"),
-confx.ProvideNamed[ServerConfig]("replica", confmaker.WithPrefix("READ_SERVER_")),
+confx.Provide[Config]("server"),
+confx.ProvideNamed[Config]("replica", confmaker.WithPrefix("READ_SERVER_")),
 ```
 
 The first reads `SERVER_PORT`, the second `READ_SERVER_PORT`. Consume them with:
 
 ```go
-type Params struct {
+fx.Invoke(func(params struct {
 	fx.In
-	Primary ServerConfig
-	Replica ServerConfig `name:"replica"`
-}
+
+	Primary Config
+	Replica Config `name:"replica"`
+}) {
+	fmt.Println(params.Primary.Port, params.Replica.Port)
+})
 ```
 
-Use `fx.Invoke(func(p Params) { /* use p.Primary and p.Replica */ })` or take
-`Params` in a constructor. Two untagged providers of the same type conflict in
+The same parameter shape can be used by a constructor. Two untagged providers of the same type conflict in
 Fx even if their instance names differ. `WithPrefix` never changes the Fx tag.
 
-## Lifecycle and errors
+## Configuration engines
 
-Include exactly one `confx.Module()` or `confx.FromLoader(loader)`.
+The default engine reads ENV with confmaker tags and rules. Configure all domains
+through the composition, for example `modules.WithOptions(confmaker.WithEnv(env))`.
+`WithOptions` returns a copy and appends options; it does not mutate the original.
+
+A custom engine is selected once for the same composition:
+
+```go
+modules := confx.MakeModules(
+	orders.Module,
+	billing.Module,
+).WithOptions(
+	confmaker.WithEngine(engine),
+	confmaker.WithDiagnosticHandler(handleReport),
+)
+```
+
+The custom engine owns its sources, tags and decoding rules. confmaker still
+applies root defaults before decoding and validates afterward. Built-in options
+such as `WithEnv` and `WithPrefix` cannot be combined with a custom engine.
+
+| Runnable example | What it demonstrates |
+| --- | --- |
+| [env/v11](examples/engines/env11) | Native ENV tags and `envDefault`, isolated input maps, two named configs |
+| [koanf + TOML](examples/engines/koanf) | Embedded TOML files, overlay settings, native `koanf` tags, two named configs |
+
+Both examples build a domain module and inject configurations into a service.
+Their dependencies live in a [separate Go module](examples/engines/README.md),
+not in the adapter's main module. The package GoDoc also includes a runnable
+standard-library JSON engine example. For Viper and direct YAML/TOML decoders,
+see [confmaker's engine examples](https://github.com/uchaloop/confmaker/tree/main/examples/engines).
+
+Each Fx application receives its own Loader, but reused Engine objects and callback
+closures are shared. Engines must support concurrent calls if reused concurrently.
+The application owns their resources. Backend errors may contain input values;
+the diagnostic report contains no configuration values. Custom-engine reports
+have config-level detail and their Manifest returns `ErrManifestUnsupported`.
+
+## Errors and diagnostics
+
+Use `modules.FX()`, or exactly one legacy `confx.Module()` / `confx.FromLoader(loader)`.
 All provided configs load during `fx.New`, including those with no consumers.
 A core loading error is available through `app.Err()` and prevents startup.
 
@@ -143,118 +191,91 @@ With `Module`, `Provide` and `ProvideNamed` options may be reused across
 applications; each app receives its own loader and values. External loaders
 retain shared values and load state, as described below.
 
-## Load diagnostics
 
-Use the core handler option to process a value-free report before Fx receives a
-configuration loading error, while keeping `fx.New(...).Run()`:
+Use `confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) { ... })`
+through `modules.WithOptions` (or the standalone `Module`) for a value-free report
+during app construction, including load errors.
+With an external loader, `WithDiagnostics()` enables `loader.Report()` snapshots.
+The loader owns the report; there is no separate receiver. Callbacks run after
+publication and do not run for loading panics.
+
+If Fx rejects the graph before loading, the diagnostic callback does not run.
+An enabled external loader remains `not_started`. Inspect `app.Err()` for graph
+errors; reports describe configuration loading, not the entire Fx application.
+
+## Manifest and describe
+
+Declare configuration once alongside the domain services:
 
 ```go
-fx.New(
-    confx.Module(
-        confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
-            // Format the report with your application's logger.
-        }),
-    ),
-    confx.Provide[ServerConfig]("server"),
-).Run()
+var Module = confx.MakeModule("orders",
+	confx.Provide[Config]("orders"),
+	confx.Runtime(
+		fx.Provide(makeService),
+		fx.Invoke(registerHandlers),
+	),
+)
 ```
 
-The handler runs once during configuration loading in `fx.New`, on success or
-error. It receives sources, statuses and structured categories, without values or
-error messages. Loading panics propagate and skip the handler. No automatic
-logging or additional Fx adapter is involved.
-
-For explicit inspection after `app := fx.New(...)`, create
-`diagnostics := confmaker.MakeDiagnostics()`, pass
-`confmaker.WithDiagnostics(diagnostics)` to `Module`, and read
-`diagnostics.Report()` before calling `Run`. Reading it after `Run` is unsuitable
-for startup errors because Fx may terminate the process.
-
-In external-loader mode, pass these options to `confmaker.MakeLoader` and use
-`FromLoader` as usual. If Fx rejects the graph or registration mode before loading
-begins, there is no load report: the receiver remains `LoadNotStarted` and the
-handler is not called. Inspect `app.Err()` for those Fx errors. Each Diagnostics
-receiver belongs to one loader; use a fresh receiver for each ordinary Module app.
-
-## Testing
-
-Pass an isolated ENV map to Module. This setup uses `ServerConfig` above and
-imports `testing`, confmaker, confx and Fx:
+Compose the modules once in your application. `describe` below is a parsed
+`confcli.MakeDescribeFlag`; flag parsing stays with the application.
 
 ```go
-func TestServerConfig(t *testing.T) {
-	t.Parallel()
-
-	var got ServerConfig
-	app := fx.New(
-		fx.NopLogger,
-		confx.Module(confmaker.WithEnv(map[string]string{"SERVER_PORT": "9090"})),
-		confx.Provide[ServerConfig]("server"),
-		fx.Populate(&got),
-	)
-	if err := app.Err(); err != nil {
-		t.Fatal(err)
-	}
-	if got.Port != 9090 {
-		t.Fatalf("unexpected port: %d", got.Port)
-	}
-}
-```
-
-No `app.Start` is needed to inspect configuration values: loading already
-happened during construction. In a real app, unrelated constructors can run
-during `fx.New`; this is not a general-purpose dry-run mode.
-
-## External loader and manifest
-
-The simple Module + Provide API remains the default. For documentation generation
-without reading ENV or constructing services, register configurations in the core
-before creating Fx, then bridge their handles into the application:
-
-```go
-package main
-
-import (
-    "flag"
-    "log"
-    "os"
-
-    "github.com/uchaloop/confmaker"
-    "github.com/uchaloop/confx"
-    "go.uber.org/fx"
+modules := confx.MakeModules(
+	orders.Module,
+	billing.Module,
+).WithOptions(
+	confmaker.WithDiagnosticHandler(handleReport),
 )
 
-type ServerConfig struct {
-    Port int `env:"PORT,required"`
+if describe.Requested() {
+	manifest, err := modules.Manifest(confmaker.IncludeDefaults())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := describe.Write(os.Stdout, manifest); err != nil {
+		log.Fatal(err)
+	}
+
+	return
 }
 
-func main() {
-    describe := confmaker.MakeDescribeFlag(flag.CommandLine)
-    flag.Parse()
-
-    loader := confmaker.MakeLoader()
-    server := loader.Register[ServerConfig]("server")
-
-    if describe.Requested() {
-        if err := describe.Write(loader, os.Stdout); err != nil {
-            log.Fatal(err)
-        }
-        return
-    }
-
-    fx.New(
-        confx.FromLoader(loader),
-        confx.FromHandle(server),
-        fx.Invoke(func(cfg ServerConfig) { log.Printf("server port: %d", cfg.Port) }),
-        // Add runtime modules here.
-    ).Run()
-}
+fx.New(modules.FX()).Run()
 ```
 
-`go run . -describe=markdown` completes before `fx.New`; required ENV is not
-needed. Use `-describe=env` or `-describe=json` for the other export formats.
-Normal startup loads during `fx.New`. Either Run or explicit Start/Stop is valid:
-separating description from application construction is what matters.
+`FX()` installs the core adapter itself: do not add `confx.Module()` or
+`FromLoader()` alongside it. Each application receives a fresh loader using the
+same saved options. `WithOptions` returns a new composition; supplied engines and
+callback closures are shared. Nested `MakeModule` preserves Fx private visibility
+and decorator scopes.
+
+Manifest does not construct an Fx application, load ENV, invoke services or call
+load diagnostics. `IncludeDefaults` explicitly executes configuration defaults
+and renderers. It does not validate the service graph or all load-only options.
+Custom engines still return `confmaker.ErrManifestUnsupported`.
+
+To avoid silently incomplete output, Manifest rejects every opaque option outside
+`Runtime`, including ordinary `fx.Options`, `fx.Module` and `fx.Provide`. The error
+wraps `confx.ErrOpaqueOption` and identifies the module path and option index.
+The entire tree is checked before defaults run; errors return no partial manifest.
+Such ordinary Fx options remain usable on the `FX()` startup path.
+
+`Runtime` asserts that its options contain no configuration declarations. Direct
+confx registrations, module specifications and legacy loader/handle options are
+rejected inside it. A registration hidden deeper inside an opaque Fx wrapper
+cannot be detected: do not put configuration-bearing wrappers inside `Runtime`.
+Argument evaluation, such as `fx.Supply(makeService())`, and Go package `init`
+execute normally and are not suppressed by description mode.
+
+The original `Module`/`Provide` and external-loader APIs remain available when
+application-level composition or offline description is unnecessary.
+
+## External loader
+
+Use an external Loader when your application already owns configuration
+registration, loading or inspection. `FromLoader` and the handle adapters bridge
+those registrations into Fx without registering them again.
 
 | Adapter | Purpose |
 |---|---|
@@ -277,8 +298,51 @@ Register every config outside Fx in the extended mode. The manifest generated
 before fx.New then describes the complete registration set.
 
 For export formats and guarantees, see the core
-[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-configuration-documentation).
+[manifest guide](https://github.com/uchaloop/confmaker#manifest-and-exports).
 The adapters do not parse flags or terminate the process.
+
+## Testing
+
+Pass an isolated ENV map to Module. This setup uses `Config` above and
+imports `testing`, confmaker, confx and Fx:
+
+```go
+func TestConfig(t *testing.T) {
+	t.Parallel()
+
+	var got Config
+	app := fx.New(
+		fx.NopLogger,
+		confx.Module(confmaker.WithEnv(map[string]string{"SERVER_PORT": "9090"})),
+		confx.Provide[Config]("server"),
+		fx.Populate(&got),
+	)
+	if err := app.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got.Port != 9090 {
+		t.Fatalf("unexpected port: %d", got.Port)
+	}
+}
+```
+
+No `app.Start` is needed to inspect configuration values: loading already
+happened during construction. In a real app, unrelated constructors can run
+during `fx.New`; this is not a general-purpose dry-run mode.
+
+For repository checks, run each module explicitly with `GOWORK=off`: the root,
+`integration/secret` and `examples/engines`. In each directory run:
+
+```sh
+GOWORK=off go mod tidy -diff
+GOWORK=off go build ./...
+GOWORK=off go vet ./...
+GOWORK=off go test -race ./...
+```
+
+Real secret compatibility lives in [integration/secret](integration/secret/README.md).
+The root module does not depend on secret or the example engines. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for code style and contribution requirements.
 
 ## Reference
 

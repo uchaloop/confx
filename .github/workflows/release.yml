@@ -9,7 +9,11 @@ permissions:
   contents: read
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   pkg-go-dev:
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Trigger pkg.go.dev to index the release
@@ -17,9 +21,10 @@ jobs:
           MODULE: github.com/uchaloop/confx
         run: |
           version="${GITHUB_REF_NAME}"
-          curl -fsS "https://proxy.golang.org/${MODULE}/@v/${version}.info"
+          curl --fail --show-error --silent --retry 4 --retry-all-errors --retry-delay 5 --retry-max-time 180 --connect-timeout 10 --max-time 30 "https://proxy.golang.org/${MODULE}/@v/${version}.info"
 
   release:
+    needs: checks
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,7 +40,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
 
           awk -v v="$version" '
-            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            $1 == "##" && $2 == "[" v "]" { found = 1; next }
             found && /^## / { exit }
             found
           ' CHANGELOG.md > notes.md
