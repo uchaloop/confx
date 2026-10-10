@@ -1,4 +1,4 @@
-package confx
+package integration_test
 
 import (
 	"fmt"
@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confx"
 	"github.com/uchaloop/secret/v2"
 	"go.uber.org/fx"
 )
 
-// benchPool and benchConfig repeat confmaker's benchmark config, so the two
-// benchmarks compare the same work with and without Fx.
+// benchPool and benchConfig exercise a realistic config with the real secret type.
 type benchPool struct {
 	MaxConns        int32         `env:"MAX_CONNS"`
 	MinConns        int32         `env:"MIN_CONNS"`
@@ -38,10 +38,8 @@ func (c *benchConfig) SetDefaults() {
 	c.Pool.MaxConnLifetime = time.Hour
 }
 
-// BenchmarkModuleStart builds an Fx application with six populated instances:
-// the same configs and environment as confmaker's BenchmarkLoader, so the
-// difference from its "register+load" is what Fx adds. Options are built once,
-// outside the measured loop, as an application builds them once.
+// BenchmarkModuleStart builds an Fx application with six populated instances.
+// Options are prepared outside the measured loop.
 func BenchmarkModuleStart(b *testing.B) {
 	env := map[string]string{}
 	options := []fx.Option{fx.NopLogger}
@@ -57,10 +55,10 @@ func BenchmarkModuleStart(b *testing.B) {
 			env[fmt.Sprintf("CONFXBENCH%d_%s", i, variable)] = value
 		}
 
-		options = append(options, ProvideNamed[benchConfig](name))
+		options = append(options, confx.ProvideNamed[benchConfig](name))
 	}
 
-	options = append(options, Module(confmaker.WithEnv(env)))
+	options = append(options, confx.Module(confmaker.WithEnv(env)))
 
 	b.ReportAllocs()
 	for b.Loop() {

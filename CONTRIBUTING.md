@@ -58,3 +58,10 @@ Example before publication:
 
 [2.0.0]: https://github.com/uchaloop/confmaker/compare/v1.0.1...HEAD
 ```
+
+## Secret integration tests
+
+The main module does not depend on secret. Real secret compatibility tests and
+its benchmark live in [integration/secret](integration/secret/README.md), a separate
+Go module. Run it explicitly; the root `go test ./...` does not include it.
+The integration module intentionally replaces confx with this checkout.

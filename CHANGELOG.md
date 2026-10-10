@@ -13,7 +13,8 @@ Entries are grouped by version and change type, with the newest version first.
 
 ### Changed
 
-- Updated the secret/v2 dependency to v2.2.0 for the structural sensitivity marker.
+- Removed the secret dependency from the main module. Moved its benchmark and
+  added compatibility tests in a separate integration module using secret/v2 v2.2.0.
 - **Breaking:** Renamed the Module option type from `confmaker.EnvOption` to
   `confmaker.LoaderOption`.
 - **Breaking:** Adopted `github.com/uchaloop/confmaker/v2`; core options, loaders and

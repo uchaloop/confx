@@ -283,3 +283,10 @@ registration names do not override Fx restrictions on named tags.
 Custom engines provide config-level reports and do not support Loader.Manifest.
 See the [core engine example](https://github.com/uchaloop/confmaker#custom-engines)
 for a dependency-free extension point and an application-level env/v11 adapter.
+
+## Secret integration tests
+
+The main module does not depend on secret. Real secret compatibility tests and
+its benchmark live in [integration/secret](integration/secret/README.md), a separate
+Go module. Run it explicitly; the root `go test ./...` does not include it.
+The integration module intentionally replaces confx with this checkout.
