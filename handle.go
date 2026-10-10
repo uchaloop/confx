@@ -13,17 +13,17 @@ import (
 // must reference its owner. No second registration is made. Nil, zero and foreign
 // handles fail app construction before loading the application's configs.
 func FromHandle[T any](handle *confmaker.Handle[T]) fx.Option {
-	return fromHandle(handle, "")
+	return legacyOption{fromHandle(handle, "")}
 }
 
 // FromHandleNamed provides an existing registration with its registration name
 // as the Fx name tag. WithPrefix does not affect this name. FromLoader is required.
 func FromHandleNamed[T any](handle *confmaker.Handle[T]) fx.Option {
 	if handle == nil {
-		return fx.Error(errors.New("confx.FromHandleNamed requires a non-nil handle"))
+		return legacyOption{fx.Error(errors.New("confx.FromHandleNamed requires a non-nil handle"))}
 	}
 
-	return fromHandle(handle, utilfx.NameTag(handle.Name()))
+	return legacyOption{fromHandle(handle, utilfx.NameTag(handle.Name()))}
 }
 
 func fromHandle[T any](handle *confmaker.Handle[T], tag string) fx.Option {

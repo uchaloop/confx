@@ -4,9 +4,9 @@
 
 **Explicit confmaker registration for Uber Fx.** confx provides typed configs to
 Fx consumers. [confmaker](https://github.com/uchaloop/confmaker) owns defaults,
-ENV parsing, validation and diagnostics; the adapter owns wiring them into Fx.
+configuration engines, validation and diagnostics; the adapter owns wiring them into Fx.
 
-[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Manifest](#external-loader-and-manifest) · [Reference](#reference)
+[Install](#installation) · [Quick start](#quick-start) · [Instances](#multiple-instances) · [Lifecycle](#lifecycle-and-errors) · [Engines](#custom-configuration-engines) · [Diagnostics](#load-diagnostics) · [Testing](#testing) · [Manifest](#external-loader-and-manifest) · [Reference](#reference)
 
 ## Installation
 
@@ -87,7 +87,7 @@ An instance name, an ENV prefix and an Fx tag serve different purposes:
 | Concept | Source | Purpose |
 |---|---|---|
 | Instance name | First argument to Provide / ProvideNamed | Core registration identity and diagnostics |
-| ENV prefix | Derived from the name, or WithPrefix | Variable lookup |
+| ENV prefix (built-in engine) | Derived from the name, or WithPrefix | Variable lookup |
 | Fx name tag | ProvideNamed only | Select a named dependency |
 
 Using `ServerConfig` from the quick start, replace its registration with:
@@ -134,6 +134,72 @@ With `Module`, `Provide` and `ProvideNamed` options may be reused across
 applications; each app receives its own loader and values. External loaders
 retain shared values and load state, as described below.
 
+## Custom configuration engines
+
+Pass `confmaker.WithEngine(engine)` to `confx.Module`, or configure an external
+Loader before `FromLoader`. Module accepts `confmaker.LoaderOption`. Parsing and
+tags belong to the backend; Fx wiring is unchanged:
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confx"
+	"go.uber.org/fx"
+)
+
+func main() {
+	type config struct {
+		Port int `json:"port"`
+	}
+
+	engine := confmaker.EngineFunc(func(ctx context.Context, req confmaker.LoadRequest) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		if req.Name != "server" {
+			return fmt.Errorf("unknown configuration %q", req.Name)
+		}
+
+		return json.Unmarshal([]byte(`{"port":9090}`), req.Target)
+	})
+
+	app := fx.New(
+		fx.NopLogger,
+		confx.Module(confmaker.WithEngine(engine)),
+		confx.Provide[config]("server"),
+		fx.Invoke(func(cfg config) {
+			fmt.Println(cfg.Port)
+		}),
+	)
+	if err := app.Err(); err != nil {
+		fmt.Println(err)
+	}
+
+}
+```
+
+This example uses the standard `encoding/json` decoder and the `context`, `fmt`,
+confmaker, confx and Fx packages. Its runnable GoDoc version is tested.
+
+Each app gets its own Loader when Module options are reused, but the Engine object
+is shared: it must support concurrent calls across loaders. The caller owns its
+resources. Loading still occurs during fx.New with the ordinary Load lifecycle;
+this adapter adds no cancellation or engine resource lifecycle. Arbitrary core
+registration names do not override Fx restrictions on named tags.
+
+Custom engines provide config-level reports and do not support Loader.Manifest.
+See the [core engine examples](https://github.com/uchaloop/confmaker/tree/main/examples/engines)
+for env/v11, Viper, koanf, YAML and TOML adapters. Those dependencies belong to
+the application, not confx. Built-in ENV options, including WithEnv and WithPrefix,
+cannot be combined with a custom engine. Backend errors may contain input values;
+only the diagnostic report is value-free.
+
 ## Load diagnostics
 
 Use `confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) { ... })`
@@ -171,6 +237,75 @@ No `app.Start` is needed to inspect configuration values: loading already
 happened during construction. In a real app, unrelated constructors can run
 during `fx.New`; this is not a general-purpose dry-run mode.
 
+## One module tree for description and startup
+
+Use `MakeModule` for domain modules that declare configurations. Keep ordinary
+Fx providers, invocations and decorators inside `Runtime`:
+
+```go
+var Module = confx.MakeModule("orders",
+	confx.Provide[Config]("orders"),
+	confx.Runtime(
+		fx.Provide(makeService),
+		fx.Invoke(registerHandlers),
+	),
+)
+```
+
+Compose the modules once in your application. `describe` below is a parsed
+`confcli.MakeDescribeFlag`; flag parsing stays with the application.
+
+```go
+modules := confx.MakeModules(
+	orders.Module,
+	billing.Module,
+).WithOptions(
+	confmaker.WithDiagnosticHandler(handleReport),
+)
+
+if describe.Requested() {
+	manifest, err := modules.Manifest(confmaker.IncludeDefaults())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := describe.Write(os.Stdout, manifest); err != nil {
+		log.Fatal(err)
+	}
+
+	return
+}
+
+fx.New(modules.FX()).Run()
+```
+
+`FX()` installs the core adapter itself: do not add `confx.Module()` or
+`FromLoader()` alongside it. Each application receives a fresh loader using the
+same saved options. `WithOptions` returns a new composition; supplied engines and
+callback closures are shared. Nested `MakeModule` preserves Fx private visibility
+and decorator scopes.
+
+Manifest does not construct an Fx application, load ENV, invoke services or call
+load diagnostics. `IncludeDefaults` explicitly executes configuration defaults
+and renderers. It does not validate the service graph or all load-only options.
+Custom engines still return `confmaker.ErrManifestUnsupported`.
+
+To avoid silently incomplete output, Manifest rejects every opaque option outside
+`Runtime`, including ordinary `fx.Options`, `fx.Module` and `fx.Provide`. The error
+wraps `confx.ErrOpaqueOption` and identifies the module path and option index.
+The entire tree is checked before defaults run; errors return no partial manifest.
+Such ordinary Fx options remain usable on the `FX()` startup path.
+
+`Runtime` asserts that its options contain no configuration declarations. Direct
+confx registrations, module specifications and legacy loader/handle options are
+rejected inside it. A registration hidden deeper inside an opaque Fx wrapper
+cannot be detected: do not put configuration-bearing wrappers inside `Runtime`.
+Argument evaluation, such as `fx.Supply(makeService())`, and Go package `init`
+execute normally and are not suppressed by description mode.
+
+The original `Module`/`Provide` and external-loader APIs remain available when
+application-level composition or offline description is unnecessary.
+
 ## External loader and manifest
 
 The simple Module + Provide API remains the default. For documentation generation
@@ -181,42 +316,44 @@ before creating Fx, then bridge their handles into the application:
 package main
 
 import (
-    "flag"
-    "log"
-    "os"
+	"flag"
+	"log"
+	"os"
 
-    "github.com/uchaloop/confmaker/v2"
-    "github.com/uchaloop/confmaker/v2/confcli"
-    "github.com/uchaloop/confx"
-    "go.uber.org/fx"
+	"github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confmaker/v2/confcli"
+	"github.com/uchaloop/confx"
+	"go.uber.org/fx"
 )
 
 type ServerConfig struct {
-    Port int `env:"PORT,required"`
+	Port int `env:"PORT,required"`
 }
 
 func main() {
-    describe := confcli.MakeDescribeFlag(flag.CommandLine)
-    flag.Parse()
+	describe := confcli.MakeDescribeFlag(flag.CommandLine)
+	flag.Parse()
 
-    loader := confmaker.MakeLoader()
-    server := loader.Register[ServerConfig]("server")
+	loader := confmaker.MakeLoader()
+	server := loader.Register[ServerConfig]("server")
 
-    if describe.Requested() {
-        manifest, err := loader.Manifest(confmaker.IncludeDefaults())
-        if err != nil { log.Fatal(err) }
-        if err := describe.Write(os.Stdout, manifest); err != nil {
-            log.Fatal(err)
-        }
-        return
-    }
+	if describe.Requested() {
+		manifest, err := loader.Manifest(confmaker.IncludeDefaults())
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := describe.Write(os.Stdout, manifest); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
-    fx.New(
-        confx.FromLoader(loader),
-        confx.FromHandle(server),
-        fx.Invoke(func(cfg ServerConfig) { log.Printf("server port: %d", cfg.Port) }),
-        // Add runtime modules here.
-    ).Run()
+	fx.New(
+		confx.FromLoader(loader),
+		confx.FromHandle(server),
+		fx.Invoke(func(cfg ServerConfig) { log.Printf("server port: %d", cfg.Port) }),
+		// Add runtime modules here.
+	).Run()
 }
 ```
 
@@ -263,26 +400,6 @@ for its dependency injection and lifecycle primitives.
 ## License
 
 [MIT](LICENSE)
-
-## Custom configuration engines
-
-Pass `confmaker.WithEngine(engine)` to `confx.Module`, or configure an external
-Loader before `FromLoader`. Module accepts `confmaker.LoaderOption`. Parsing and
-tags belong to the backend; Fx wiring is unchanged:
-
-```go
-confx.Module(confmaker.WithEngine(engine), confmaker.WithDiagnostics())
-```
-
-Each app gets its own Loader when Module options are reused, but the Engine object
-is shared: it must support concurrent calls across loaders. The caller owns its
-resources. Loading still occurs during fx.New with the ordinary Load lifecycle;
-this adapter adds no cancellation or engine resource lifecycle. Arbitrary core
-registration names do not override Fx restrictions on named tags.
-
-Custom engines provide config-level reports and do not support Loader.Manifest.
-See the [core engine example](https://github.com/uchaloop/confmaker#custom-engines)
-for a dependency-free extension point and an application-level env/v11 adapter.
 
 ## Secret integration tests
 

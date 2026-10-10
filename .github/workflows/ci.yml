@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOWORK: "off"
+      GOTOOLCHAIN: local
 
     steps:
       - uses: actions/checkout@v4
@@ -41,8 +42,11 @@ jobs:
             exit 1
           fi
 
-      - name: Download dependencies
-        run: go mod download all
+      - name: Check module files
+        run: go mod tidy -diff
+
+      - name: Build
+        run: go build ./...
 
       - name: Vet
         run: go vet ./...
@@ -55,6 +59,7 @@ jobs:
     timeout-minutes: 15
     env:
       GOWORK: "off"
+      GOTOOLCHAIN: local
     defaults:
       run:
         working-directory: integration/secret
@@ -64,8 +69,10 @@ jobs:
         with:
           go-version: '1.27.x'
           cache: false
-      - name: Resolve integration dependencies
-        run: go mod tidy
+      - name: Check integration module files
+        run: go mod tidy -diff
+      - name: Build integration
+        run: go build ./...
       - name: Vet integration
         run: go vet ./...
       - name: Test integration

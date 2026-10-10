@@ -9,5 +9,13 @@ require (
 	go.uber.org/fx v1.24.0
 )
 
+require (
+	github.com/uchaloop/utilfx v0.2.0 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.28.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+)
+
 // Test the adapter checkout. The core is supplied by the workspace or publication.
 replace github.com/uchaloop/confx => ../..

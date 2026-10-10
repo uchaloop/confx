@@ -54,7 +54,7 @@ type handleKey struct{ _ byte }
 // when no configs are registered.
 func Module(opts ...confmaker.LoaderOption) fx.Option {
 	opts = slices.Clone(opts)
-	return makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)
+	return legacyOption{makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)}
 }
 
 // FromLoader uses an existing loader instead of Module. Use only FromHandle or
@@ -65,17 +65,20 @@ func Module(opts ...confmaker.LoaderOption) fx.Option {
 // across apps shares its values and one-shot load state.
 func FromLoader(loader *confmaker.Loader) fx.Option {
 	if loader == nil {
-		return fx.Error(errors.New("confx.FromLoader requires a non-nil loader"))
+		return legacyOption{fx.Error(errors.New("confx.FromLoader requires a non-nil loader"))}
 	}
 
-	return makeModule(func() *confmaker.Loader { return loader }, externalHandles)
+	return legacyOption{makeModule(func() *confmaker.Loader { return loader }, externalHandles)}
 }
 
 func makeModule(makeLoader func() *confmaker.Loader, mode registrationMode) fx.Option {
 	return fx.Module("confmaker",
 		fx.Provide(fx.Annotate(
 			func(registrars []registrar) (*registry, error) {
-				r := &registry{loader: makeLoader(), handles: make(map[*handleKey]any, len(registrars))}
+				r := &registry{
+					loader:  makeLoader(),
+					handles: make(map[*handleKey]any, len(registrars)),
+				}
 				var errs []error
 				for _, registration := range registrars {
 					if registration.mode != mode {
@@ -108,7 +111,7 @@ func makeModule(makeLoader func() *confmaker.Loader, mode registrationMode) fx.O
 }
 
 // Provide registers a config with the required instance name and provides it
-// without an Fx tag. confmaker validates the name and derives its default ENV
+// without an Fx tag. With the built-in engine, confmaker validates the name and derives its ENV
 // prefix; [confmaker.WithPrefix] overrides only the prefix. [Module] is required;
 // FromLoader cannot be mixed with Provide.
 // The config is loaded during fx.New even when no constructor consumes it.
@@ -117,7 +120,7 @@ func Provide[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
 }
 
 // ProvideNamed registers a config with the required instance name and provides
-// it with the Fx tag name:"<name>". The name also determines the default prefix;
+// it with the Fx tag name:"<name>". With the built-in engine, the name determines the default prefix;
 // [confmaker.WithPrefix] can override the prefix. [Module] is required, and
 // loading happens during fx.New as for [Provide].
 func ProvideNamed[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
@@ -132,20 +135,28 @@ func provide[T any](name string, opts []confmaker.ConfigOption, tag string) fx.O
 	opts = slices.Clone(opts)
 	key := new(handleKey)
 
-	return fx.Options(
+	option := fx.Options(
 		utilfx.Grouped(registrarGroup, func() registrar {
-			return registrar{mode: providedConfigs, register: func(r *registry) error {
-				handle := r.loader.Register[T](name, opts...)
-				if !handle.BelongsTo(r.loader) {
-					_, err := handle.Value()
-					return err
-				}
-				r.handles[key] = handle
-				return nil
-			}}
+			return registrar{
+				mode: providedConfigs,
+				register: func(r *registry) error {
+					handle := r.loader.Register[T](name, opts...)
+					if !handle.BelongsTo(r.loader) {
+						_, err := handle.Value()
+						return err
+					}
+					r.handles[key] = handle
+					return nil
+				},
+			}
 		}),
 		provideHandleValue[T](key, tag),
 	)
+
+	return declaredOption{
+		optionBridge: option,
+		register:     func(loader *confmaker.Loader) { loader.Register[T](name, opts...) },
+	}
 }
 
 func provideHandleValue[T any](key *handleKey, tag string) fx.Option {

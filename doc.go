@@ -1,6 +1,6 @@
 /*
 Package confx adapts github.com/uchaloop/confmaker/v2 to Uber Fx. The application
-explicitly registers its package configs; confmaker owns ENV parsing, defaults,
+explicitly registers its package configs; confmaker owns configuration engines, defaults,
 validation and diagnostics, while confx provides the resulting typed values.
 This adapter uses confmaker v2 and retains independent v0.x versioning.
 
@@ -19,8 +19,8 @@ WithPrefix.
 [Module] creates one confmaker.Loader per application and is required once when
 configs are registered, unless [FromLoader] supplies an existing loader instead. [Provide] passes the explicit instance name to the core
 and provides the result without an Fx tag. [ProvideNamed] additionally uses that
-name as the Fx tag name:"<name>". confmaker validates names, derives ENV prefixes
-and loads the configurations; the adapter handles their registration in Fx.
+name as the Fx tag name:"<name>". With the built-in engine, confmaker validates names and derives ENV prefixes.
+With a custom engine, its tags and parsing rules apply. confmaker loads the configurations; the adapter handles their registration in Fx.
 
 # Lifecycle
 
@@ -77,6 +77,22 @@ before a loading error reaches Fx, preserving fx.New(...).Run(). For explicit
 inspection, enable confmaker.WithDiagnostics() on an external loader and read loader.Report after fx.New,
 before Run. External loaders accept the same core options. If Fx rejects the
 graph before loading, the handler is not called and an enabled loader report stays in the not_started state.
+
+# Module composition and offline description
+
+MakeModule preserves configuration declarations beside a real Fx module.
+MakeModules composes one tree for Manifest and FX; WithOptions returns a copy
+with shared core loader options. FX installs Module itself and creates a fresh
+loader per application. Do not combine it with Module or FromLoader.
+
+Wrap service providers, invocations and decorators in Runtime. Manifest rejects
+opaque options outside Runtime with ErrOpaqueOption, before executing defaults,
+and returns no partial result. Runtime asserts that its contents have no config
+registrations; configurations hidden in opaque Fx wrappers cannot be discovered.
+Nested MakeModule preserves module scopes. Manifest runs no Fx constructors or
+invocations; IncludeDefaults still runs user defaults and renderers. It neither
+validates the Fx graph nor all load-only options. Go argument evaluation and init
+are outside this guarantee. Custom engines do not support Manifest.
 
 # Core library
 

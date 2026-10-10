@@ -65,3 +65,20 @@ The main module does not depend on secret. Real secret compatibility tests and
 its benchmark live in [integration/secret](integration/secret/README.md), a separate
 Go module. Run it explicitly; the root `go test ./...` does not include it.
 The integration module intentionally replaces confx with this checkout.
+
+## Code style
+
+Use `Make…` / `make…` for constructors, blank lines between logical steps and
+explicit multiline error checks. Use anonymous structs for one-use shapes;
+keep named types when reused or when they have methods. Format Go examples too.
+
+CI checks module files with `go mod tidy -diff`, builds, vets and runs race tests
+in both the root and `integration/secret` modules with `GOWORK=off`. Final release
+verification requires published dependencies and committed checksums for both modules.
+
+## Composition contracts
+
+Keep the original Fx module tree intact when adding composition features. Tests
+must cover private visibility, decorators, concurrent option reuse and strict
+manifest preflight. Never inspect Fx internal option types or call Option.String
+to discover declarations. Runtime is an explicit caller assertion, not a scanner.

@@ -8,6 +8,13 @@ Entries are grouped by version and change type, with the newest version first.
 
 ### Added
 
+- Added module composition with `MakeModule`, `MakeModules`, shared loader options
+  and offline manifests from the same declaration tree. Added `Runtime` and strict
+  opaque-option checks to prevent implicitly incomplete manifests.
+
+- Added a runnable JSON engine example and coverage for named engine registrations
+  and diagnostic callbacks in both Fx registration modes.
+
 - Added support for application-supplied engines through core options in both
   registration modes, without new dependencies or an adapter-specific engine API.
 
