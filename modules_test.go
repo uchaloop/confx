@@ -12,9 +12,6 @@ import (
 type config struct {
 	Port int `env:"PORT,required"`
 }
-type nestedConfig struct {
-	Host string `env:"HOST,required"`
-}
 type privateValue struct{}
 type scopeValue string
 
@@ -22,7 +19,11 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 	constructors, invokes, hooks, callbacks := 0, 0, 0, 0
 	modules := MakeModules(MakeModule("parent",
 		Provide[config]("server", c.WithPrefix("WEB_")),
-		MakeModule("child", Provide[nestedConfig]("db")),
+		MakeModule("child",
+			Provide[struct {
+				Host string `env:"HOST,required"`
+			}]("db"),
+		),
 		Runtime(fx.Provide(func() *privateValue {
 			constructors++
 
@@ -36,7 +37,13 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 					return nil
 				}})
 			})),
-	)).WithOptions(c.WithEnv(map[string]string{"WEB_PORT": "9090", "DB_HOST": "localhost"}), c.WithDiagnosticHandler(func(c.LoadReport) { callbacks++ }))
+	)).WithOptions(
+		c.WithEnv(map[string]string{
+			"WEB_PORT": "9090",
+			"DB_HOST":  "localhost",
+		}),
+		c.WithDiagnosticHandler(func(c.LoadReport) { callbacks++ }),
+	)
 
 	manifest, err := modules.Manifest()
 	if err != nil || len(manifest.Configs) != 2 {
@@ -98,7 +105,15 @@ func TestOptionsIsolationAndLoaderReuse(t *testing.T) {
 
 func TestCustomEngineManifestDoesNotCallEngine(t *testing.T) {
 	calls := 0
-	modules := MakeModules(MakeModule("server", Provide[config]("server"))).WithOptions(c.WithEngine(c.EngineFunc(func(context.Context, c.LoadRequest) error { calls++; return nil })))
+	engine := c.EngineFunc(func(context.Context, c.LoadRequest) error {
+		calls++
+
+		return nil
+	})
+
+	modules := MakeModules(
+		MakeModule("server", Provide[config]("server")),
+	).WithOptions(c.WithEngine(engine))
 	_, err := modules.Manifest()
 	if !errors.Is(err, c.ErrManifestUnsupported) || calls != 0 {
 		t.Fatalf("%v calls=%d", err, calls)
@@ -120,7 +135,10 @@ type defaultConfig struct {
 	Port int `env:"PORT"`
 }
 
-func (c *defaultConfig) SetDefaults() { defaultsCalls++; c.Port = 8080 }
+func (c *defaultConfig) SetDefaults() {
+	defaultsCalls++
+	c.Port = 8080
+}
 
 func TestManifestDefaultsAreExplicit(t *testing.T) {
 	defaultsCalls = 0

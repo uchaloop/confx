@@ -145,7 +145,9 @@ func provide[T any](name string, opts []confmaker.ConfigOption, tag string) fx.O
 						_, err := handle.Value()
 						return err
 					}
+
 					r.handles[key] = handle
+
 					return nil
 				},
 			}

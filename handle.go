@@ -32,6 +32,7 @@ func fromHandle[T any](handle *confmaker.Handle[T], tag string) fx.Option {
 	}
 
 	key := new(handleKey)
+
 	return fx.Options(
 		utilfx.Grouped(registrarGroup, func() registrar {
 			return registrar{
@@ -40,10 +41,13 @@ func fromHandle[T any](handle *confmaker.Handle[T], tag string) fx.Option {
 					if !handle.BelongsTo(r.loader) {
 						return fmt.Errorf("config handle %q is not registered with the loader supplied to confx.FromLoader; use a valid handle from that loader", handle.Name())
 					}
+
 					return nil
 				},
 				register: func(r *registry) error {
+
 					r.handles[key] = handle
+
 					return nil
 				},
 			}

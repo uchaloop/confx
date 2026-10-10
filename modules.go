@@ -42,7 +42,11 @@ func MakeModule(name string, opts ...fx.Option) *ModuleSpec {
 		option = fx.Error(err)
 	}
 
-	return &ModuleSpec{optionBridge: option, name: name, options: opts}
+	return &ModuleSpec{
+		optionBridge: option,
+		name:         name,
+		options:      opts,
+	}
 }
 
 // Modules is an immutable application composition. Use MakeModules to create it.
@@ -62,7 +66,10 @@ func MakeModules(modules ...fx.Option) *Modules {
 func (m *Modules) WithOptions(opts ...confmaker.LoaderOption) *Modules {
 	options := append(slices.Clone(m.options), opts...)
 
-	return &Modules{modules: m.modules, options: options}
+	return &Modules{
+		modules: m.modules,
+		options: options,
+	}
 }
 
 // Manifest describes all visible declarations without constructing an Fx app.
@@ -71,6 +78,7 @@ func (m *Modules) WithOptions(opts ...confmaker.LoaderOption) *Modules {
 // all load-only options. A custom engine returns ErrManifestUnsupported.
 func (m *Modules) Manifest(opts ...confmaker.ManifestOption) (confmaker.ManifestResult, error) {
 	var declarations []func(*confmaker.Loader)
+
 	if err := inspectOptions(m.modules, "root", true, &declarations); err != nil {
 		return confmaker.ManifestResult{}, err
 	}
@@ -111,6 +119,7 @@ func inspectOptions(opts []fx.Option, path string, strict bool, declarations *[]
 			if opt.optionBridge == nil {
 				return fmt.Errorf("confx: zero ModuleSpec at %s", location)
 			}
+
 			if err := inspectOptions(opt.options, location+"/"+opt.name, strict, declarations); err != nil {
 				return err
 			}

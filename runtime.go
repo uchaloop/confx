@@ -19,28 +19,34 @@ type runtimeOption struct {
 // not hide them here. Argument evaluation and package init run normally in Go.
 func Runtime(opts ...fx.Option) fx.Option {
 	opts = slices.Clone(opts)
-	var err error
-	for i, opt := range opts {
-		if nilOption(opt) {
-			err = fmt.Errorf("confx: nil Runtime option at index %d", i)
-			break
-		}
-
-		switch opt := opt.(type) {
-		case declaredOption, *ModuleSpec, legacyOption:
-			err = fmt.Errorf("confx: configuration option inside Runtime at index %d", i)
-		case runtimeOption:
-			err = opt.err
-		}
-		if err != nil {
-			break
-		}
-	}
+	err := checkRuntimeOptions(opts)
 
 	var option fx.Option = fx.Options(opts...)
 	if err != nil {
 		option = fx.Error(err)
 	}
 
-	return runtimeOption{optionBridge: option, err: err}
+	return runtimeOption{
+		optionBridge: option,
+		err:          err,
+	}
+}
+
+func checkRuntimeOptions(opts []fx.Option) error {
+	for i, opt := range opts {
+		if nilOption(opt) {
+			return fmt.Errorf("confx: nil Runtime option at index %d", i)
+		}
+
+		switch opt := opt.(type) {
+		case declaredOption, *ModuleSpec, legacyOption:
+			return fmt.Errorf("confx: configuration option inside Runtime at index %d", i)
+		case runtimeOption:
+			if opt.err != nil {
+				return opt.err
+			}
+		}
+	}
+
+	return nil
 }

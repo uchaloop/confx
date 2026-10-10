@@ -15,8 +15,12 @@ type hostileOption struct{ fx.Option }
 func (*hostileOption) String() string { panic("String must not run") }
 
 func TestOpaqueOptionsRejectedBeforeDefaults(t *testing.T) {
-
-	for _, opt := range []fx.Option{fx.Options(fx.Supply(1)), fx.Module("hidden", Provide[config]("hidden")), fx.Provide(func() int { return 1 }), &hostileOption{}} {
+	for _, opt := range []fx.Option{
+		fx.Options(fx.Supply(1)),
+		fx.Module("hidden", Provide[config]("hidden")),
+		fx.Provide(func() int { return 1 }),
+		&hostileOption{},
+	} {
 		defaultsCalls = 0
 		modules := MakeModules(MakeModule("parent", Provide[defaultConfig]("first"), MakeModule("child", opt)))
 		result, err := modules.Manifest(c.IncludeDefaults())
@@ -31,7 +35,19 @@ func TestRuntimeRejectsConfigurationOptions(t *testing.T) {
 	loader := c.MakeLoader()
 	handle := loader.Register[config]("server")
 
-	for _, opt := range []fx.Option{nil, typedNil, &ModuleSpec{}, Provide[config]("server"), ProvideNamed[config]("server"), MakeModule("child"), Module(), FromLoader(loader), FromLoader(nil), FromHandle(handle), FromHandleNamed(handle)} {
+	for _, opt := range []fx.Option{
+		nil,
+		typedNil,
+		&ModuleSpec{},
+		Provide[config]("server"),
+		ProvideNamed[config]("server"),
+		MakeModule("child"),
+		Module(),
+		FromLoader(loader),
+		FromLoader(nil),
+		FromHandle(handle),
+		FromHandleNamed(handle),
+	} {
 		modules := MakeModules(Runtime(opt))
 		if _, err := modules.Manifest(); err == nil {
 			t.Fatal("accepted invalid Runtime")
@@ -57,7 +73,12 @@ func TestNilCompositionOptions(t *testing.T) {
 }
 
 func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
-	module := MakeModule("server", ProvideNamed[config]("primary"), MakeModule("replica", ProvideNamed[config]("replica", c.WithPrefix("READ_"))))
+	module := MakeModule("server",
+		ProvideNamed[config]("primary"),
+		MakeModule("replica",
+			ProvideNamed[config]("replica", c.WithPrefix("READ_")),
+		),
+	)
 	modules := MakeModules(module).WithOptions(c.WithEnv(map[string]string{"PRIMARY_PORT": "1", "READ_PORT": "2"}))
 
 	result, err := modules.Manifest()
@@ -68,6 +89,7 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 
 	app := fx.New(fx.NopLogger, modules.FX(), fx.Invoke(func(p struct {
 		fx.In
+
 		Primary config `name:"primary"`
 		Replica config `name:"replica"`
 	}) {
@@ -86,7 +108,14 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 
 func TestConcurrentCompositionReuse(t *testing.T) {
 	reports := make(chan c.LoadReport, 2)
-	modules := MakeModules(MakeModule("server", Provide[config]("server"))).WithOptions(c.WithEnv(map[string]string{"SERVER_PORT": "1"}), c.WithDiagnosticHandler(func(r c.LoadReport) { reports <- r }))
+	modules := MakeModules(
+		MakeModule("server", Provide[config]("server")),
+	).WithOptions(
+		c.WithEnv(map[string]string{"SERVER_PORT": "1"}),
+		c.WithDiagnosticHandler(func(report c.LoadReport) {
+			reports <- report
+		}),
+	)
 	option := modules.FX()
 	errs := make(chan error, 2)
 	var wg sync.WaitGroup

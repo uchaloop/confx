@@ -8,6 +8,8 @@ Entries are grouped by version and change type, with the newest version first.
 
 ### Added
 
+- Added isolated env/v11 and koanf + TOML application examples with tests and CI.
+
 - Added module composition with `MakeModule`, `MakeModules`, shared loader options
   and offline manifests from the same declaration tree. Added `Runtime` and strict
   opaque-option checks to prevent implicitly incomplete manifests.

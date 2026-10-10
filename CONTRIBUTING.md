@@ -82,3 +82,11 @@ Keep the original Fx module tree intact when adding composition features. Tests
 must cover private visibility, decorators, concurrent option reuse and strict
 manifest preflight. Never inspect Fx internal option types or call Option.String
 to discover declarations. Runtime is an explicit caller assertion, not a scanner.
+
+## Engine examples
+
+The separate examples/engines module contains runnable env/v11 and koanf + TOML
+applications. Check it explicitly with GOWORK=off using build, vet, race tests and
+go mod tidy -diff. Keep dependencies there; the root adapter must not depend on
+these decoders. Demonstrate Fx integration and native backend behavior, not a
+second implementation of confmaker's parsing contract.

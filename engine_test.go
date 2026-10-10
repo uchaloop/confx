@@ -19,22 +19,38 @@ type backendConfig struct {
 func TestModuleCustomEngine(t *testing.T) {
 	e := confmaker.EngineFunc(func(_ context.Context, r confmaker.LoadRequest) error {
 		r.Target.(*backendConfig).Value = 42
+
 		return nil
 	})
 	var got backendConfig
-	app := fx.New(fx.NopLogger, Module(confmaker.WithEngine(e)), Provide[backendConfig]("service/db"), fx.Populate(&got))
+	app := fx.New(
+		fx.NopLogger,
+		Module(confmaker.WithEngine(e)),
+		Provide[backendConfig]("service/db"),
+		fx.Populate(&got),
+	)
 	if app.Err() != nil || got.Value != 42 {
 		t.Fatalf("%+v %v", got, app.Err())
 	}
 	cause := errors.New("backend error")
-	app = fx.New(fx.NopLogger, Module(confmaker.WithEngine(confmaker.EngineFunc(func(context.Context, confmaker.LoadRequest) error { return cause }))), Provide[backendConfig]("x"))
+	failingEngine := confmaker.EngineFunc(func(context.Context, confmaker.LoadRequest) error {
+		return cause
+	})
+
+	app = fx.New(
+		fx.NopLogger,
+		Module(confmaker.WithEngine(failingEngine)),
+		Provide[backendConfig]("x"),
+	)
 	if !errors.Is(app.Err(), cause) {
 		t.Fatal(app.Err())
 	}
 }
+
 func TestExternalCustomEngine(t *testing.T) {
 	l := confmaker.MakeLoader(confmaker.WithEngine(confmaker.EngineFunc(func(_ context.Context, r confmaker.LoadRequest) error {
 		r.Target.(*backendConfig).Value = 7
+
 		return nil
 	})), confmaker.WithDiagnostics())
 	h := l.Register[backendConfig]("service/db")
@@ -44,10 +60,12 @@ func TestExternalCustomEngine(t *testing.T) {
 		t.Fatalf("%+v %v %+v", got, app.Err(), l.Report())
 	}
 }
+
 func TestModuleEngineReuse(t *testing.T) {
 	var calls atomic.Int32
 	e := confmaker.EngineFunc(func(_ context.Context, r confmaker.LoadRequest) error {
 		r.Target.(*backendConfig).Value = int(calls.Add(1))
+
 		return nil
 	})
 	opts := fx.Options(Module(confmaker.WithEngine(e)), Provide[backendConfig]("x"))
@@ -85,7 +103,11 @@ func TestCustomEngineNamedRegistrations(t *testing.T) {
 				return nil
 			})
 
-			options := fx.Options(Module(confmaker.WithEngine(engine)), ProvideNamed[backendConfig]("primary"), ProvideNamed[backendConfig]("replica"))
+			options := fx.Options(
+				Module(confmaker.WithEngine(engine)),
+				ProvideNamed[backendConfig]("primary"),
+				ProvideNamed[backendConfig]("replica"),
+			)
 			if external {
 				loader := confmaker.MakeLoader(confmaker.WithEngine(engine))
 				primary := loader.Register[backendConfig]("primary")
