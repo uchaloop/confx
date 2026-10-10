@@ -4,7 +4,7 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
-## [0.5.0] - Unreleased
+## [0.5.0]
 
 ### Added
 
@@ -77,7 +77,7 @@ Entries are grouped by version and change type, with the newest version first.
 - Published the initial standalone release of the confx Uber Fx adapter.
 - Established an independent module, dependencies, tests and release workflow.
 
-[0.5.0]: https://github.com/uchaloop/confx/compare/v0.4.1...HEAD
+[0.5.0]: https://github.com/uchaloop/confx/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/uchaloop/confx/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/uchaloop/confx/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/uchaloop/confx/compare/v0.2.0...v0.3.0
