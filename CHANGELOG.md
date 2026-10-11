@@ -4,7 +4,7 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
-## [0.5.0]
+## [0.5.1]
 
 ### Added
 
@@ -33,6 +33,13 @@ Entries are grouped by version and change type, with the newest version first.
   callbacks with internally owned loaders. Each Fx application retains its own loader.
 - Updated offline documentation examples to use explicit manifest defaults and the
   separate `confcli` and `confexport` packages.
+
+## [0.5.0]
+
+### Changed
+
+- Published this version accidentally from `main` based on v0.4.1, without the
+  planned changes listed in v0.5.1. Use v0.5.1 instead.
 
 ## [0.4.1] - 2026-10-03
 
@@ -88,6 +95,7 @@ Entries are grouped by version and change type, with the newest version first.
 - Published the initial standalone release of the confx Uber Fx adapter.
 - Established an independent module, dependencies, tests and release workflow.
 
+[0.5.1]: https://github.com/uchaloop/confx/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/uchaloop/confx/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/uchaloop/confx/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/uchaloop/confx/compare/v0.3.0...v0.4.0
