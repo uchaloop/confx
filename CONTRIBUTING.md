@@ -68,13 +68,24 @@ The integration module intentionally replaces confx with this checkout.
 
 ## Code style
 
-Use `Make…` / `make…` for constructors, blank lines between logical steps and
+The process entry point `confx.New` is an explicitly agreed naming exception.
+Use `Make…` / `make…` for other constructors, blank lines between logical steps and
 explicit multiline error checks. Use anonymous structs for one-use shapes;
 keep named types when reused or when they have methods. Format Go examples too.
 
 CI checks module files with `go mod tidy -diff`, builds, vets and runs race tests
 in both the root and `integration/secret` modules with `GOWORK=off`. Final release
 verification requires published dependencies and committed checksums for both modules.
+
+## Process entry exception
+
+`App.Run` is an explicitly agreed exception to Go convention 18 (libraries do
+not exit the process). Preserve `confx.New(...).Run()`: CLI errors exit with code
+1 and normal startup delegates signal handling, lifecycle and exit codes to
+`fx.App.Run`. Successful help/description returns without constructing Fx.
+Process exits skip caller defers. Applications that need to control cleanup and
+exit decisions must use `App.Manifest` and `App.FX` with a manual Fx lifecycle.
+This exception applies only to the process entry point, not other adapter APIs.
 
 ## Composition contracts
 

@@ -41,7 +41,7 @@ func (c *benchConfig) SetDefaults() {
 // BenchmarkModuleStart builds an Fx application with six populated instances.
 // Options are prepared outside the measured loop.
 func BenchmarkModuleStart(b *testing.B) {
-	env := map[string]string{}
+	env := make(map[string]string)
 	options := []fx.Option{fx.NopLogger}
 	for i := range 6 {
 		name := fmt.Sprintf("confxbench%d", i)

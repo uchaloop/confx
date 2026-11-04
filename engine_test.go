@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -55,9 +56,19 @@ func TestExternalCustomEngine(t *testing.T) {
 	})), confmaker.WithDiagnostics())
 	h := l.Register[backendConfig]("service/db")
 	var got backendConfig
-	app := fx.New(fx.NopLogger, FromLoader(l), FromHandle(h), fx.Populate(&got))
+	app := fx.New(
+		fx.NopLogger,
+		FromLoader(l),
+		FromHandle(h),
+		fx.Populate(&got),
+	)
 	if app.Err() != nil || got.Value != 7 || l.Report().DetailLevel != confmaker.DetailConfig {
-		t.Fatalf("%+v %v %+v", got, app.Err(), l.Report())
+		t.Fatalf(
+			"%+v %v %+v",
+			got,
+			app.Err(),
+			l.Report(),
+		)
 	}
 }
 
@@ -89,13 +100,18 @@ func TestModuleEngineReuse(t *testing.T) {
 	}
 	a, b := <-values, <-values
 	if calls.Load() != 2 || a == b || a+b != 3 {
-		t.Fatalf("calls=%d values=%d,%d", calls.Load(), a, b)
+		t.Fatalf(
+			"calls=%d values=%d,%d",
+			calls.Load(),
+			a,
+			b,
+		)
 	}
 }
 
 func TestCustomEngineNamedRegistrations(t *testing.T) {
-	for _, external := range []bool{false, true} {
-		t.Run(fmt.Sprint(external), func(t *testing.T) {
+	for _, isExternal := range []bool{false, true} {
+		t.Run(strconv.FormatBool(isExternal), func(t *testing.T) {
 			engine := confmaker.EngineFunc(func(_ context.Context, req confmaker.LoadRequest) error {
 				values := map[string]int{"primary": 11, "replica": 22}
 				req.Target.(*backendConfig).Value = values[req.Name]
@@ -108,36 +124,36 @@ func TestCustomEngineNamedRegistrations(t *testing.T) {
 				ProvideNamed[backendConfig]("primary"),
 				ProvideNamed[backendConfig]("replica"),
 			)
-			if external {
+			if isExternal {
 				loader := confmaker.MakeLoader(confmaker.WithEngine(engine))
 				primary := loader.Register[backendConfig]("primary")
 				replica := loader.Register[backendConfig]("replica")
 				options = fx.Options(FromLoader(loader), FromHandleNamed(primary), FromHandleNamed(replica))
 			}
 
-			consumed := false
+			isConsumed := false
 			app := fx.New(fx.NopLogger, options, fx.Invoke(func(p struct {
 				fx.In
 
 				Primary backendConfig `name:"primary"`
 				Replica backendConfig `name:"replica"`
 			}) {
-				consumed = true
+				isConsumed = true
 				if p.Primary.Value != 11 || p.Replica.Value != 22 {
 					t.Fatalf("incorrect named values: %+v", p)
 				}
 			}))
-			if app.Err() != nil || !consumed {
-				t.Fatalf("consumer=%v error=%v", consumed, app.Err())
+			if app.Err() != nil || !isConsumed {
+				t.Fatalf("consumer=%v error=%v", isConsumed, app.Err())
 			}
 		})
 	}
 }
 
 func TestCustomEngineDiagnosticCallback(t *testing.T) {
-	for _, external := range []bool{false, true} {
+	for _, isExternal := range []bool{false, true} {
 		for _, outcome := range []string{"success", "error", "panic"} {
-			t.Run(fmt.Sprintf("external=%v/%s", external, outcome), func(t *testing.T) {
+			t.Run(fmt.Sprintf("external=%v/%s", isExternal, outcome), func(t *testing.T) {
 				cause := errors.New("backend failure")
 				engine := confmaker.EngineFunc(func(context.Context, confmaker.LoadRequest) error {
 					switch outcome {
@@ -160,7 +176,7 @@ func TestCustomEngineDiagnosticCallback(t *testing.T) {
 					}),
 				}
 				options := fx.Options(Module(opts...), Provide[backendConfig]("app"))
-				if external {
+				if isExternal {
 					loader := confmaker.MakeLoader(opts...)
 					options = fx.Options(FromLoader(loader), FromHandle(loader.Register[backendConfig]("app")))
 				}

@@ -7,7 +7,7 @@ require (
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
 	github.com/knadh/koanf/providers/rawbytes v1.0.1
 	github.com/knadh/koanf/v2 v2.3.8
-	github.com/uchaloop/confmaker/v2 v2.0.0
+	github.com/uchaloop/confmaker/v2 v2.1.0
 	github.com/uchaloop/confx v0.5.0
 	go.uber.org/fx v1.24.0
 )

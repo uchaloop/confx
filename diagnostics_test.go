@@ -8,13 +8,13 @@ import (
 )
 
 func TestDiagnosticsBeforeFxStartup(t *testing.T) {
-	for _, external := range []bool{false, true} {
-		for _, valid := range []bool{false, true} {
+	for _, isExternal := range []bool{false, true} {
+		for _, isValid := range []bool{false, true} {
 			var captured confmaker.LoadReport
 			var loader *confmaker.Loader
 			callbackCalls := 0
-			env := map[string]string{}
-			if valid {
+			env := make(map[string]string)
+			if isValid {
 				env["APP_HOST"] = "localhost"
 			}
 			options := []confmaker.LoaderOption{confmaker.WithEnv(env), confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
@@ -25,7 +25,7 @@ func TestDiagnosticsBeforeFxStartup(t *testing.T) {
 				}
 			})}
 			var registration, module fx.Option
-			if external {
+			if isExternal {
 				loader = confmaker.MakeLoader(options...)
 				handle := loader.Register[externalConfig]("app")
 				module, registration = FromLoader(loader), FromHandle(handle)
@@ -33,11 +33,16 @@ func TestDiagnosticsBeforeFxStartup(t *testing.T) {
 				module, registration = Module(options...), Provide[externalConfig]("app")
 			}
 			app := fx.New(fx.NopLogger, module, registration)
-			if (app.Err() == nil) != valid || callbackCalls != 1 {
-				t.Fatal(external, valid, app.Err(), callbackCalls)
+			if (app.Err() == nil) != isValid || callbackCalls != 1 {
+				t.Fatal(
+					isExternal,
+					isValid,
+					app.Err(),
+					callbackCalls,
+				)
 			}
 			expectedStatus := confmaker.LoadFailed
-			if valid {
+			if isValid {
 				expectedStatus = confmaker.LoadSucceeded
 			}
 
@@ -50,7 +55,12 @@ func TestDiagnosticsBeforeFxStartup(t *testing.T) {
 
 func TestDiagnosticsWhenFxDoesNotLoad(t *testing.T) {
 	calls := 0
-	app := fx.New(fx.NopLogger, Module(confmaker.WithDiagnosticHandler(func(confmaker.LoadReport) { calls++ })), Provide[externalConfig]("app"), Provide[externalConfig]("duplicate"))
+	app := fx.New(
+		fx.NopLogger,
+		Module(confmaker.WithDiagnosticHandler(func(confmaker.LoadReport) { calls++ })),
+		Provide[externalConfig]("app"),
+		Provide[externalConfig]("duplicate"),
+	)
 	if app.Err() == nil || calls != 0 {
 		t.Fatal(app.Err(), calls)
 	}

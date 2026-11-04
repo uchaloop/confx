@@ -10,17 +10,58 @@ WithPrefix.
 
 # Quick start
 
-Declare configuration in the domain and place ordinary Fx options in Runtime:
+For ordinary Fx injection without built-in help/describe, use Module once and
+regular Fx modules. Neither MakeModule nor Runtime is required:
 
-	var Module = confx.MakeModule("store",
-		confx.Provide[Config]("store"),
-		confx.Runtime(fx.Provide(makeService)),
+	var serverModule = fx.Module("server",
+		confx.Provide[ServerConfig]("server"),
+		fx.Provide(makeServer),
 	)
+	var storeModule = fx.Module("store",
+		confx.Provide[StoreConfig]("store"),
+		fx.Provide(makeStore),
+	)
+	fx.New(confx.Module(), serverModule, storeModule).Run()
 
-Compose domain modules once:
+For built-in help/describe, declare the same domains using MakeModule and put
+ordinary Fx options in Runtime:
 
-	modules := confx.MakeModules(store.Module, orders.Module)
-	fx.New(modules.FX()).Run()
+	var serverModule = confx.MakeModule("server",
+		confx.Provide[ServerConfig]("server"),
+		confx.Runtime(fx.Provide(makeServer)),
+	)
+	var storeModule = confx.MakeModule("store",
+		confx.Provide[StoreConfig]("store"),
+		confx.Runtime(fx.Provide(makeStore)),
+	)
+	confx.New(serverModule, storeModule).Run()
+
+These are alternative compositions; config types and constructors belong to
+the application. In domain packages, export each module so main only lists them.
+
+New captures the composition without constructing Fx or reading configuration.
+App.Run handles -help and -describe=env|markdown|json before constructing Fx.
+Descriptions include defaults by default; WithManifestOptions() disables their
+evaluation only for description, without changing runtime defaults or disabling
+CLI. Defaults and renderers are user code and may perform their own I/O. Help
+and descriptions go to stdout and return. CLI errors go to
+stderr and exit with code 1. Normal execution delegates lifecycle and exit codes
+to fx.App.Run. Unknown flags and positional arguments are rejected.
+
+Use App.Manifest and App.FX for custom CLI handling or manual lifecycle control.
+App has no Err, Start, Stop or Wait methods. Obtain an fx.App explicitly:
+
+	definition := confx.New(serverModule, storeModule)
+	fxApp := fx.New(definition.FX())
+	if err := fxApp.Err(); err != nil {
+		return err
+	}
+
+This fragment belongs inside a function returning error. FX does not parse CLI;
+fx.New loads configs and runs invocations before Start. Use fxApp.Start/Stop for
+manual lifecycle hooks or pass fx.Populate alongside definition.FX in tests.
+The zero App is equivalent to New(). WithManifestOptions replaces description
+options; WithOptions appends loader options. Both return immutable copies.
 
 FX installs one core adapter per application. Do not add Module or FromLoader
 alongside it. WithOptions returns a new composition with shared core loader
@@ -56,7 +97,8 @@ instance name as that identity:
 		fmt.Println(params.Primary.Host, params.Replica.Host)
 	})
 
-Inspect construction errors with app.Err(). Core ConfigError diagnostics remain
+Inspect construction errors with fxApp.Err() on the constructed fx.App. Core
+ConfigError diagnostics remain
 reachable through confmaker.ConfigErrors and errors.As. Missing Module or
 conflicting Fx providers are adapter or Fx errors, not core config diagnostics.
 Loaded configs should be treated as read-only, including their maps and slices.
@@ -69,13 +111,14 @@ named handle uses Handle.Name as its Fx tag. All handles must belong to the same
 loader. Exactly one Module or FromLoader may be installed.
 
 For offline documentation, register configs externally and generate the manifest
-before fx.New. Normal startup can then use Run or explicit Start/Stop. Module
+before fx.New. Normal startup can then use fx.App.Run or explicit fx.App.Start/Stop. Module
 accepts only Provide/ProvideNamed, while FromLoader accepts only
 FromHandle/FromHandleNamed. Mixing modes or supplying a foreign handle fails
 before registrations or loading and leaves the external loader unchanged.
 Previously loaded loaders retain their results. Reusing an external loader
 across apps shares its load state and
-values. The adapter does not interpret command-line flags or exit the process.
+values. These lower-level adapters do not interpret command-line flags or exit
+the process; App.Run is the opt-in process-level entry point.
 
 # Custom engines
 
@@ -107,12 +150,15 @@ MakeModules composes one tree for Manifest and FX; WithOptions returns a copy
 with shared core loader options. FX installs Module itself and creates a fresh
 loader per application. Do not combine it with Module or FromLoader.
 
-Wrap service providers, invocations and decorators in Runtime. Manifest rejects
+For offline description, wrap service providers, invocations and decorators in
+Runtime. Runtime does not delay invocations until Start. Manifest rejects
 opaque options outside Runtime with ErrOpaqueOption, before executing defaults,
 and returns no partial result. Runtime asserts that its contents have no config
 registrations; configurations hidden in opaque Fx wrappers cannot be discovered.
 Nested MakeModule preserves module scopes. Manifest runs no Fx constructors or
-invocations; IncludeDefaults still runs user defaults and renderers. It neither
+invocations; IncludeDefaults still runs user defaults and renderers, which can
+perform their own I/O. App.Manifest includes defaults by default; Modules.Manifest
+requires IncludeDefaults explicitly. It neither
 validates the Fx graph nor all load-only options. Go argument evaluation and init
 are outside this guarantee. Custom engines do not support Manifest.
 

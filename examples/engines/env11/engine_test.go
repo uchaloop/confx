@@ -34,8 +34,8 @@ func TestEngineThroughFx(t *testing.T) {
 				modules.FX(),
 				fx.Populate(&got),
 			)
-			valid := value == "8080"
-			if valid {
+			isValid := value == "8080"
+			if isValid {
 				if app.Err() != nil || got == nil {
 					t.Fatalf("service=%v error=%v", got, app.Err())
 				}
@@ -47,7 +47,7 @@ func TestEngineThroughFx(t *testing.T) {
 			}
 
 			state := confmaker.LoadFailed
-			if valid {
+			if isValid {
 				state = confmaker.LoadSucceeded
 			}
 			if callbacks != 1 || report.State != state || report.DetailLevel != confmaker.DetailConfig {

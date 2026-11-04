@@ -44,7 +44,8 @@ func makeService(params struct {
 }
 
 func makeModule() *confx.ModuleSpec {
-	return confx.MakeModule("server",
+	return confx.MakeModule(
+		"server",
 		confx.ProvideNamed[config]("primary"),
 		confx.ProvideNamed[config]("replica"),
 		confx.Runtime(fx.Provide(makeService)),

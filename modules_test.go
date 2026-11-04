@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	c "github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confmaker/v2"
 	"go.uber.org/fx"
 )
 
@@ -17,8 +17,9 @@ type scopeValue string
 
 func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 	constructors, invokes, hooks, callbacks := 0, 0, 0, 0
-	modules := MakeModules(MakeModule("parent",
-		Provide[config]("server", c.WithPrefix("WEB_")),
+	modules := MakeModules(MakeModule(
+		"parent",
+		Provide[config]("server", confmaker.WithPrefix("WEB_")),
 		MakeModule("child",
 			Provide[struct {
 				Host string `env:"HOST,required"`
@@ -38,11 +39,11 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 				}})
 			})),
 	)).WithOptions(
-		c.WithEnv(map[string]string{
+		confmaker.WithEnv(map[string]string{
 			"WEB_PORT": "9090",
 			"DB_HOST":  "localhost",
 		}),
-		c.WithDiagnosticHandler(func(c.LoadReport) { callbacks++ }),
+		confmaker.WithDiagnosticHandler(func(confmaker.LoadReport) { callbacks++ }),
 	)
 
 	manifest, err := modules.Manifest()
@@ -60,13 +61,22 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 
 	app := fx.New(fx.NopLogger, modules.FX(), fx.Populate(&got))
 	if app.Err() != nil || got.Port != 9090 || constructors != 1 || invokes != 1 || callbacks != 1 || hooks != 0 {
-		t.Fatalf("app=%v got=%+v counts=%d/%d/%d/%d", app.Err(), got, constructors, invokes, hooks, callbacks)
+		t.Fatalf(
+			"app=%v got=%+v counts=%d/%d/%d/%d",
+			app.Err(),
+			got,
+			constructors,
+			invokes,
+			hooks,
+			callbacks,
+		)
 	}
 }
 
 func TestPrivateVisibilityAndDecorate(t *testing.T) {
 	var inside, child, outside scopeValue
-	module := MakeModule("parent",
+	module := MakeModule(
+		"parent",
 		fx.Provide(func() *privateValue { return &privateValue{} }, fx.Private),
 		fx.Decorate(func(v scopeValue) scopeValue { return v + "/parent" }),
 		fx.Invoke(func(v scopeValue, _ *privateValue) { inside = v }),
@@ -74,11 +84,27 @@ func TestPrivateVisibilityAndDecorate(t *testing.T) {
 	)
 	modules := MakeModules(module)
 
-	app := fx.New(fx.NopLogger, fx.Supply(scopeValue("root")), modules.FX(), fx.Invoke(func(v scopeValue) { outside = v }))
+	app := fx.New(
+		fx.NopLogger,
+		fx.Supply(scopeValue("root")),
+		modules.FX(),
+		fx.Invoke(func(v scopeValue) { outside = v }),
+	)
 	if app.Err() != nil || inside != "root/parent" || child != inside || outside != "root" {
-		t.Fatalf("%v scopes=%q/%q/%q", app.Err(), inside, child, outside)
+		t.Fatalf(
+			"%v scopes=%q/%q/%q",
+			app.Err(),
+			inside,
+			child,
+			outside,
+		)
 	}
-	app = fx.New(fx.NopLogger, fx.Supply(scopeValue("root")), modules.FX(), fx.Invoke(func(*privateValue) {}))
+	app = fx.New(
+		fx.NopLogger,
+		fx.Supply(scopeValue("root")),
+		modules.FX(),
+		fx.Invoke(func(*privateValue) {}),
+	)
 	if app.Err() == nil {
 		t.Fatal("private value escaped module")
 	}
@@ -86,15 +112,15 @@ func TestPrivateVisibilityAndDecorate(t *testing.T) {
 
 func TestOptionsIsolationAndLoaderReuse(t *testing.T) {
 	base := MakeModules(MakeModule("server", Provide[config]("server")))
-	first := base.WithOptions(c.WithEnv(map[string]string{"SERVER_PORT": "1"}))
-	second := base.WithOptions(c.WithEnv(map[string]string{"SERVER_PORT": "2"}))
+	first := base.WithOptions(confmaker.WithEnv(map[string]string{"SERVER_PORT": "1"}))
+	second := base.WithOptions(confmaker.WithEnv(map[string]string{"SERVER_PORT": "2"}))
 	if len(base.options) != 0 {
 		t.Fatal("mutated base")
 	}
 	for _, item := range []struct {
 		m    *Modules
 		want int
-	}{{first, 1}, {second, 2}, {first, 1}} {
+	}{{m: first, want: 1}, {m: second, want: 2}, {m: first, want: 1}} {
 		var got config
 		app := fx.New(fx.NopLogger, item.m.FX(), fx.Populate(&got))
 		if app.Err() != nil || got.Port != item.want {
@@ -105,7 +131,7 @@ func TestOptionsIsolationAndLoaderReuse(t *testing.T) {
 
 func TestCustomEngineManifestDoesNotCallEngine(t *testing.T) {
 	calls := 0
-	engine := c.EngineFunc(func(context.Context, c.LoadRequest) error {
+	engine := confmaker.EngineFunc(func(context.Context, confmaker.LoadRequest) error {
 		calls++
 
 		return nil
@@ -113,9 +139,9 @@ func TestCustomEngineManifestDoesNotCallEngine(t *testing.T) {
 
 	modules := MakeModules(
 		MakeModule("server", Provide[config]("server")),
-	).WithOptions(c.WithEngine(engine))
+	).WithOptions(confmaker.WithEngine(engine))
 	_, err := modules.Manifest()
-	if !errors.Is(err, c.ErrManifestUnsupported) || calls != 0 {
+	if !errors.Is(err, confmaker.ErrManifestUnsupported) || calls != 0 {
 		t.Fatalf("%v calls=%d", err, calls)
 	}
 }
@@ -150,9 +176,14 @@ func TestManifestDefaultsAreExplicit(t *testing.T) {
 		t.Fatal("schema executed defaults")
 	}
 
-	result, err := modules.Manifest(c.IncludeDefaults())
+	result, err := modules.Manifest(confmaker.IncludeDefaults())
 	if err != nil || defaultsCalls != 1 || result.Configs[0].Variables[0].Default.Text != "8080" {
-		t.Fatalf("%+v %v calls=%d", result, err, defaultsCalls)
+		t.Fatalf(
+			"%+v %v calls=%d",
+			result,
+			err,
+			defaultsCalls,
+		)
 	}
 }
 

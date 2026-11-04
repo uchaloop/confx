@@ -25,19 +25,31 @@ func (c *StoreConfig) SetDefaults() { c.Timeout = 30 * time.Second }
 func Example() {
 	env := confmaker.WithEnv(map[string]string{"STORE_HOST": "db:5432"})
 
-	app := fx.New(
-		fx.NopLogger,
-		confx.Module(env),
+	server := fx.Module("server",
+		confx.Provide[serverConfig]("server"),
+		fx.Invoke(func(cfg serverConfig) {
+			fmt.Println("server port:", cfg.Port)
+		}),
+	)
+	store := fx.Module("store",
 		confx.Provide[StoreConfig]("store"),
 		fx.Invoke(func(cfg StoreConfig) {
 			fmt.Println(cfg.Host, cfg.Timeout)
 		}),
 	)
-	if err := app.Err(); err != nil {
+
+	fxApp := fx.New(
+		fx.NopLogger,
+		confx.Module(env),
+		server,
+		store,
+	)
+	if err := fxApp.Err(); err != nil {
 		fmt.Println(err)
 	}
 
 	// Output:
+	// server port: 8080
 	// db:5432 30s
 }
 

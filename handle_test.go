@@ -41,7 +41,14 @@ func TestExternalLoaderRegistrations(t *testing.T) {
 		Job     externalJob
 	}
 	var got params
-	app := fx.New(fx.NopLogger, FromHandleNamed(replica), FromHandle(job), FromLoader(loader), FromHandle(primary), fx.Invoke(func(p params) { got = p }))
+	app := fx.New(
+		fx.NopLogger,
+		FromHandleNamed(replica),
+		FromHandle(job),
+		FromLoader(loader),
+		FromHandle(primary),
+		fx.Invoke(func(p params) { got = p }),
+	)
 	if err := app.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -107,18 +114,23 @@ func TestExternalLoaderAlreadyLoaded(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got externalConfig
-	app := fx.New(fx.NopLogger, FromLoader(loader), FromHandle(handle), fx.Populate(&got))
+	app := fx.New(
+		fx.NopLogger,
+		FromLoader(loader),
+		FromHandle(handle),
+		fx.Populate(&got),
+	)
 	if app.Err() != nil || got.Host != "database" {
 		t.Fatalf("%+v %v", got, app.Err())
 	}
 }
 
 func TestMixedModesDoNotChangeExternalLoader(t *testing.T) {
-	for _, reversed := range []bool{false, true} {
+	for _, isReversed := range []bool{false, true} {
 		loader := confmaker.MakeLoader(confmaker.WithEnv(nil))
 		handle := loader.Register[externalJob]("job")
 		opts := []fx.Option{FromLoader(loader), Provide[externalConfig]("postgres"), FromHandle(handle)}
-		if reversed {
+		if isReversed {
 			opts[0], opts[2] = opts[2], opts[0]
 		}
 		app := fx.New(append([]fx.Option{fx.NopLogger}, opts...)...)
@@ -155,7 +167,26 @@ func TestForeignUnnamedHandleReportsOwnership(t *testing.T) {
 	owner := confmaker.MakeLoader(confmaker.WithEnv(nil))
 	handle := owner.Register[externalJob]("")
 	app := fx.New(fx.NopLogger, FromLoader(confmaker.MakeLoader()), FromHandle(handle))
-	if app.Err() == nil || errors.Is(app.Err(), confmaker.ErrNotLoaded) || !strings.Contains(app.Err().Error(), "not registered with the loader") {
+	if app.Err() == nil || errors.Is(app.Err(), confmaker.ErrNotLoaded) || !strings.Contains(app.Err().Error(), "not registered with the supplied loader") {
 		t.Fatalf("ownership error: %v", app.Err())
+	}
+}
+
+func TestNilAdapterErrors(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		option fx.Option
+		want   error
+	}{
+		{name: "loader", option: FromLoader(nil), want: ErrLoaderIsNil},
+		{name: "handle", option: FromHandle[externalJob](nil), want: ErrHandleIsNil},
+		{name: "named handle", option: FromHandleNamed[externalJob](nil), want: ErrHandleIsNil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := fx.New(fx.NopLogger, test.option).Err()
+			if !errors.Is(err, test.want) {
+				t.Fatalf("expected %v, got %v", test.want, err)
+			}
+		})
 	}
 }
