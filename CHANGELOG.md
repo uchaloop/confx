@@ -4,6 +4,24 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
+## [0.6.2] - Unreleased
+
+### Changed
+
+- **Breaking:** Changed `MakeModule` to return `fx.Option` and made its concrete
+  declaration type private. Update signatures returning `*confx.ModuleSpec` to
+  return `fx.Option`; construct modules through `MakeModule`.
+- Unified composition in `App`, retaining lazy startup, diagnostics, nested Fx
+  scopes and manual lifecycle support through `App.FX`.
+- Simplified documentation and examples to show root config declarations with
+  ordinary Fx service modules and the two supported startup styles.
+
+### Removed
+
+- **Breaking:** Removed `Modules`, `MakeModules` and the exported `ModuleSpec`
+  type. Replace `MakeModules(...)` with `New(...).WithManifestOptions()` to keep
+  descriptions without defaults, or `New(...)` to include defaults.
+
 ## [0.6.1] - 2026-11-04
 
 ### Changed
@@ -129,7 +147,7 @@ Entries are grouped by version and change type, with the newest version first.
 - Published the initial standalone release of the confx Uber Fx adapter.
 - Established an independent module, dependencies, tests and release workflow.
 
-[0.6.0]: https://github.com/uchaloop/confx/compare/v0.5.1...HEAD
+[0.6.0]: https://github.com/uchaloop/confx/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/uchaloop/confx/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/uchaloop/confx/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/uchaloop/confx/compare/v0.4.0...v0.4.1
@@ -138,4 +156,6 @@ Entries are grouped by version and change type, with the newest version first.
 [0.2.0]: https://github.com/uchaloop/confx/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/uchaloop/confx/releases/tag/v0.1.0
 
-[0.6.1]: https://github.com/uchaloop/confx/compare/v0.6.0...HEAD
+[0.6.1]: https://github.com/uchaloop/confx/compare/v0.6.0...v0.6.1
+
+[0.6.2]: https://github.com/uchaloop/confx/compare/v0.6.1...HEAD

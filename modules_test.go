@@ -17,7 +17,7 @@ type scopeValue string
 
 func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 	constructors, invokes, hooks, callbacks := 0, 0, 0, 0
-	modules := MakeModules(MakeModule(
+	modules := New(MakeModule(
 		"parent",
 		Provide[config]("server", confmaker.WithPrefix("WEB_")),
 		MakeModule("child",
@@ -38,7 +38,7 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 					return nil
 				}})
 			})),
-	)).WithOptions(
+	)).WithManifestOptions().WithOptions(
 		confmaker.WithEnv(map[string]string{
 			"WEB_PORT": "9090",
 			"DB_HOST":  "localhost",
@@ -82,7 +82,7 @@ func TestPrivateVisibilityAndDecorate(t *testing.T) {
 		fx.Invoke(func(v scopeValue, _ *privateValue) { inside = v }),
 		MakeModule("child", fx.Invoke(func(v scopeValue, _ *privateValue) { child = v })),
 	)
-	modules := MakeModules(module)
+	modules := New(module).WithManifestOptions()
 
 	app := fx.New(
 		fx.NopLogger,
@@ -111,14 +111,14 @@ func TestPrivateVisibilityAndDecorate(t *testing.T) {
 }
 
 func TestOptionsIsolationAndLoaderReuse(t *testing.T) {
-	base := MakeModules(MakeModule("server", Provide[config]("server")))
+	base := New(MakeModule("server", Provide[config]("server"))).WithManifestOptions()
 	first := base.WithOptions(confmaker.WithEnv(map[string]string{"SERVER_PORT": "1"}))
 	second := base.WithOptions(confmaker.WithEnv(map[string]string{"SERVER_PORT": "2"}))
-	if len(base.options) != 0 {
+	if len(base.loaderOptions) != 0 {
 		t.Fatal("mutated base")
 	}
 	for _, item := range []struct {
-		m    *Modules
+		m    *App
 		want int
 	}{{m: first, want: 1}, {m: second, want: 2}, {m: first, want: 1}} {
 		var got config
@@ -137,9 +137,9 @@ func TestCustomEngineManifestDoesNotCallEngine(t *testing.T) {
 		return nil
 	})
 
-	modules := MakeModules(
+	modules := New(
 		MakeModule("server", Provide[config]("server")),
-	).WithOptions(confmaker.WithEngine(engine))
+	).WithManifestOptions().WithOptions(confmaker.WithEngine(engine))
 	_, err := modules.Manifest()
 	if !errors.Is(err, confmaker.ErrManifestUnsupported) || calls != 0 {
 		t.Fatalf("%v calls=%d", err, calls)
@@ -147,7 +147,7 @@ func TestCustomEngineManifestDoesNotCallEngine(t *testing.T) {
 }
 
 func TestOpaqueFxWrapperHidesMetadata(t *testing.T) {
-	modules := MakeModules(fx.Module("opaque", Provide[config]("server")))
+	modules := New(fx.Module("opaque", Provide[config]("server"))).WithManifestOptions()
 
 	manifest, err := modules.Manifest()
 	if !errors.Is(err, ErrOpaqueOption) || len(manifest.Configs) != 0 {
@@ -168,7 +168,7 @@ func (c *defaultConfig) SetDefaults() {
 
 func TestManifestDefaultsAreExplicit(t *testing.T) {
 	defaultsCalls = 0
-	modules := MakeModules(MakeModule("server", Provide[defaultConfig]("server")))
+	modules := New(MakeModule("server", Provide[defaultConfig]("server"))).WithManifestOptions()
 	if _, err := modules.Manifest(); err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestManifestDefaultsAreExplicit(t *testing.T) {
 }
 
 func TestManifestDoesNotValidateLoadOnlyOptions(t *testing.T) {
-	modules := MakeModules(MakeModule("server", Provide[config]("server"))).WithOptions(nil)
+	modules := New(MakeModule("server", Provide[config]("server"))).WithManifestOptions().WithOptions(nil)
 	if _, err := modules.Manifest(); err != nil {
 		t.Fatal(err)
 	}

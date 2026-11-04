@@ -39,7 +39,7 @@ func checkRuntimeOptions(opts []fx.Option) error {
 		}
 
 		switch opt := opt.(type) {
-		case declaredOption, *ModuleSpec, legacyOption:
+		case declaredOption, *moduleSpec, standaloneOption:
 			return fmt.Errorf("configuration option inside Runtime at index %d", i)
 		case runtimeOption:
 			if opt.err != nil {

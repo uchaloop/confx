@@ -1,12 +1,12 @@
 # Configuration engines with Fx
 
 These runnable application examples use the same pattern: prepare sources, make
-an Engine, declare a domain with MakeModule, then configure MakeModules once.
+an Engine, declare a domain with MakeModule, then configure New once.
 ProvideNamed injects primary and replica configs into makeService through fx.In.
 No app.Start is needed to inspect loaded values; unrelated constructors can still
 run during fx.New.
 
-These examples intentionally use manual Fx construction through Modules.FX and
+These examples intentionally use manual Fx construction through App.FX and
 return after demonstrating injection. App.Run would wait for shutdown signals.
 The engines also work with App.WithOptions at runtime, but custom engines do not
 support App.Manifest or -describe; App's -help remains available.

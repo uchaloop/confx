@@ -8,9 +8,15 @@ injection. Import github.com/uchaloop/confmaker/v2 for core loader/config option
 Install [Module] once and register configs with [Provide] or [ProvideNamed].
 Ordinary Fx modules need no description-specific wrappers:
 
-	server := fx.Module("server", confx.Provide[ServerConfig]("server"))
-	store := fx.Module("store", confx.Provide[StoreConfig]("store"))
-	fx.New(confx.Module(), server, store).Run()
+	server := fx.Module("server", fx.Invoke(showServer))
+	store := fx.Module("store", fx.Invoke(showStore))
+	fx.New(
+		confx.Module(),
+		confx.Provide[ServerConfig]("server"),
+		confx.Provide[StoreConfig]("store"),
+		server,
+		store,
+	).Run()
 
 ServerConfig and StoreConfig are application types. The package example shows
 both modules with consumers and an isolated ENV map. For a required field,
@@ -18,32 +24,30 @@ see the Provide example; for multiple instances, see the ProvideNamed example.
 
 # App with help and describe
 
-For configuration description, preserve declarations with [MakeModule] and wrap
-service constructors, invocations and decorators in [Runtime]:
+Declare configs at the root and wrap ordinary service modules in [Runtime]:
 
-	server := confx.MakeModule("server",
+	server := fx.Module("server", fx.Invoke(showServer))
+	store := fx.Module("store", fx.Invoke(showStore))
+	confx.New(
 		confx.Provide[ServerConfig]("server"),
-		confx.Runtime(fx.Invoke(showServer)),
-	)
-	store := confx.MakeModule("store",
 		confx.Provide[StoreConfig]("store"),
-		confx.Runtime(fx.Invoke(showStore)),
-	)
-	confx.New(server, store).Run()
+		confx.Runtime(server, store),
+	).Run()
 
-The New example shows both modules with consumers. [New] captures the composition
-lazily. [App.Run] handles help and describe before constructing Fx, then delegates
-normal startup to Fx. It may exit the process, skipping caller defers. For custom
-CLI handling or manual lifecycle control, use [App.Manifest] and [App.FX]; the FX
-example demonstrates injection through fx.Populate. App has no Err/Start/Stop
-methods. Its method documentation defines CLI behavior and option precedence.
+The New example shows both service modules with consumers. [New] captures the
+composition lazily. [App.Run] handles help and describe before constructing Fx,
+then delegates normal startup to Fx. It may exit the process, skipping caller
+defers. For custom CLI handling or manual lifecycle control, use [App.Manifest]
+and [App.FX]; the FX example demonstrates injection through fx.Populate. App has
+no Err/Start/Stop methods. Its method documentation defines option precedence.
+For advanced nested declaration scopes, [MakeModule] preserves Fx module boundaries.
 
 # Loading and ownership
 
 All registered configs, including unused ones, load during fx.New, before Start.
 Errors reach fx.App.Err and prevent startup. Runtime does not defer invocations
-until Start. Module, [App.FX] and [Modules.FX] create a fresh loader per Fx app;
-the FX methods install Module automatically. Do not add another adapter.
+until Start. Module and [App.FX] create a fresh loader per Fx app;
+App.FX installs Module automatically. Do not add another adapter.
 Treat loaded config values, including maps and slices, as read-only.
 
 Loader options may supply custom engines and diagnostic callbacks. Reused engines
@@ -71,12 +75,19 @@ Do not mix that mode with Module/Provide. Reusing an external loader shares its
 load state and values. Its LoadContext and Report methods remain available;
 the adapter documentation specifies ownership checks and nil-handle behavior.
 
-[MakeModules] supports composition without App. Manifest inspects MakeModule
-declarations and skips Runtime; opaque options outside Runtime are rejected
-before defaults run. [App.Manifest] includes defaults by default, while
-[Modules.Manifest] requires confmaker.IncludeDefaults. User defaults/renderers
-can perform I/O; manifest does not validate the Fx graph or all load-only options.
-See Runtime for the boundary of offline inspection and the MakeModules example
-for explicit description followed by Fx construction.
+[App.Manifest] inspects declarations, traverses MakeModule and skips Runtime.
+Opaque options outside Runtime are rejected before defaults run. App includes
+defaults by default; WithManifestOptions() disables their evaluation. User
+defaults/renderers can perform I/O; manifest does not validate the Fx graph or
+all load-only options. See Runtime for the boundary of offline inspection.
+
+# Migration from 0.6.x
+
+App replaces the removed Modules and MakeModules API. Replace
+MakeModules(opts...) with New(opts...).WithManifestOptions() to preserve the
+old manifest defaults policy. MakeModule now returns fx.Option; use that type
+instead of the removed ModuleSpec in application signatures. The internal
+module representation is private. External loader adapters remain supported.
+See the README migration table.
 */
 package confx

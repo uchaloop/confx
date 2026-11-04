@@ -21,7 +21,7 @@ func TestEngineThroughFx(t *testing.T) {
 			var got *service
 			var report confmaker.LoadReport
 			callbacks := 0
-			modules := confx.MakeModules(makeModule()).WithOptions(
+			modules := confx.New(makeModule()).WithManifestOptions().WithOptions(
 				confmaker.WithEngine(engine),
 				confmaker.WithDiagnosticHandler(func(result confmaker.LoadReport) {
 					callbacks++

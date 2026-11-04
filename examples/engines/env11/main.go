@@ -43,7 +43,7 @@ func makeService(params struct {
 	}
 }
 
-func makeModule() *confx.ModuleSpec {
+func makeModule() fx.Option {
 	return confx.MakeModule(
 		"server",
 		confx.ProvideNamed[config]("primary"),
@@ -57,7 +57,7 @@ func run() error {
 		"primary": {},
 		"replica": {"PORT": "9090"},
 	})
-	modules := confx.MakeModules(makeModule()).WithOptions(
+	modules := confx.New(makeModule()).WithManifestOptions().WithOptions(
 		confmaker.WithEngine(engine),
 		confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
 			fmt.Println("diagnostics:", report.State, report.DetailLevel)

@@ -22,7 +22,7 @@ func TestOpaqueOptionsRejectedBeforeDefaults(t *testing.T) {
 		&hostileOption{},
 	} {
 		defaultsCalls = 0
-		modules := MakeModules(MakeModule("parent", Provide[defaultConfig]("first"), MakeModule("child", opt)))
+		modules := New(MakeModule("parent", Provide[defaultConfig]("first"), MakeModule("child", opt))).WithManifestOptions()
 		result, err := modules.Manifest(confmaker.IncludeDefaults())
 		if !errors.Is(err, ErrOpaqueOption) || !strings.Contains(err.Error(), "child/options[0]") || result.Configs != nil || defaultsCalls != 0 {
 			t.Fatalf(
@@ -36,14 +36,14 @@ func TestOpaqueOptionsRejectedBeforeDefaults(t *testing.T) {
 }
 
 func TestRuntimeRejectsConfigurationOptions(t *testing.T) {
-	var typedNil *ModuleSpec
+	var typedNil *moduleSpec
 	loader := confmaker.MakeLoader()
 	handle := loader.Register[config]("server")
 
 	for _, opt := range []fx.Option{
 		nil,
 		typedNil,
-		&ModuleSpec{},
+		&moduleSpec{},
 		Provide[config]("server"),
 		ProvideNamed[config]("server"),
 		MakeModule("child"),
@@ -53,7 +53,7 @@ func TestRuntimeRejectsConfigurationOptions(t *testing.T) {
 		FromHandle(handle),
 		FromHandleNamed(handle),
 	} {
-		modules := MakeModules(Runtime(opt))
+		modules := New(Runtime(opt)).WithManifestOptions()
 		if _, err := modules.Manifest(); err == nil {
 			t.Fatal("accepted invalid Runtime")
 		}
@@ -64,10 +64,10 @@ func TestRuntimeRejectsConfigurationOptions(t *testing.T) {
 }
 
 func TestNilCompositionOptions(t *testing.T) {
-	var typedNil *ModuleSpec
+	var typedNil *moduleSpec
 
-	for _, opt := range []fx.Option{nil, typedNil, &ModuleSpec{}} {
-		modules := MakeModules(MakeModule("child", opt))
+	for _, opt := range []fx.Option{nil, typedNil, &moduleSpec{}} {
+		modules := New(MakeModule("child", opt)).WithManifestOptions()
 		if _, err := modules.Manifest(); err == nil {
 			t.Fatal("accepted nil")
 		}
@@ -84,7 +84,7 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 			ProvideNamed[config]("replica", confmaker.WithPrefix("READ_")),
 		),
 	)
-	modules := MakeModules(module).WithOptions(confmaker.WithEnv(map[string]string{"PRIMARY_PORT": "1", "READ_PORT": "2"}))
+	modules := New(module).WithManifestOptions().WithOptions(confmaker.WithEnv(map[string]string{"PRIMARY_PORT": "1", "READ_PORT": "2"}))
 
 	result, err := modules.Manifest()
 	if err != nil || len(result.Configs) != 2 {
@@ -106,16 +106,16 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 	if app.Err() != nil || !isConsumed {
 		t.Fatal(app.Err())
 	}
-	if _, err := MakeModules(module, module).Manifest(); err == nil {
+	if _, err := New(module, module).WithManifestOptions().Manifest(); err == nil {
 		t.Fatal("duplicate silently removed")
 	}
 }
 
 func TestConcurrentCompositionReuse(t *testing.T) {
 	reports := make(chan confmaker.LoadReport, 2)
-	modules := MakeModules(
+	modules := New(
 		MakeModule("server", Provide[config]("server")),
-	).WithOptions(
+	).WithManifestOptions().WithOptions(
 		confmaker.WithEnv(map[string]string{"SERVER_PORT": "1"}),
 		confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
 			reports <- report
@@ -141,7 +141,7 @@ func TestConcurrentCompositionReuse(t *testing.T) {
 }
 
 func TestEmptyCompositionAndRuntimeScope(t *testing.T) {
-	modules := MakeModules()
+	modules := New().WithManifestOptions()
 
 	result, err := modules.Manifest()
 	if err != nil || len(result.Configs) != 0 {
@@ -151,10 +151,10 @@ func TestEmptyCompositionAndRuntimeScope(t *testing.T) {
 		t.Fatal(app.Err())
 	}
 	var child, sibling string
-	scoped := MakeModules(MakeModule("parent",
+	scoped := New(MakeModule("parent",
 		Runtime(fx.Decorate(func(v string) string { return v + "/parent" })),
 		MakeModule("child", Runtime(fx.Invoke(func(v string) { child = v }))),
-	), MakeModule("sibling", Runtime(fx.Invoke(func(v string) { sibling = v }))))
+	), MakeModule("sibling", Runtime(fx.Invoke(func(v string) { sibling = v })))).WithManifestOptions()
 	if _, err := scoped.Manifest(); err != nil {
 		t.Fatal(err)
 	}

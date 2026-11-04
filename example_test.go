@@ -24,13 +24,11 @@ func Example() {
 	env := confmaker.WithEnv(map[string]string{"STORE_HOST": "db:5432"})
 
 	server := fx.Module("server",
-		confx.Provide[ServerConfig]("server"),
 		fx.Invoke(func(cfg ServerConfig) {
 			fmt.Println("server port:", cfg.Port)
 		}),
 	)
 	store := fx.Module("store",
-		confx.Provide[StoreConfig]("store"),
 		fx.Invoke(func(cfg StoreConfig) {
 			fmt.Println("store host:", cfg.Host)
 		}),
@@ -39,6 +37,8 @@ func Example() {
 	fxApp := fx.New(
 		fx.NopLogger,
 		confx.Module(env),
+		confx.Provide[ServerConfig]("server"),
+		confx.Provide[StoreConfig]("store"),
 		server,
 		store,
 	)
@@ -114,7 +114,7 @@ func ExampleModule_customEngine() {
 }
 
 // One module tree is used for offline description and normal Fx construction.
-func ExampleMakeModules() {
+func ExampleMakeModule() {
 	orders := confx.MakeModule("orders",
 		confx.Provide[StoreConfig]("store"),
 		confx.Runtime(
@@ -124,7 +124,7 @@ func ExampleMakeModules() {
 		),
 	)
 
-	modules := confx.MakeModules(orders).WithOptions(
+	modules := confx.New(orders).WithManifestOptions().WithOptions(
 		confmaker.WithEnv(map[string]string{"STORE_HOST": "db:5432"}),
 	)
 
