@@ -33,11 +33,11 @@ Choose the entry point that matches your application:
 | --- | --- |
 | Ordinary Fx injection, no built-in help/describe | `fx.New(confx.Module(), server.Module, store.Module).Run()` |
 | Built-in help and configuration description | `confx.New(modules...).Run()` |
-| Custom CLI or manual Fx lifecycle | `App.Manifest` / `App.FX`, or `MakeModules` |
+| Custom CLI or manual Fx lifecycle | `App.Manifest` / `App.FX` |
 | Caller-owned loader and registrations | `FromLoader` / `FromHandle` |
 
-Both variants below use these shared declarations. Create a `main.go` with this
-block, then append **one** of the two module/startup blocks:
+Both variants below use these shared configs and service modules. Create a
+`main.go` with this block, then append **one** of the startup blocks:
 
 ```go
 package main
@@ -63,26 +63,25 @@ func (c *StoreConfig) SetDefaults() { c.Host = "localhost:5432" }
 
 func showServer(cfg ServerConfig) { fmt.Println("server port:", cfg.Port) }
 func showStore(cfg StoreConfig) { fmt.Println("store host:", cfg.Host) }
+
+var ServerModule = fx.Module("server", fx.Invoke(showServer))
+var StoreModule = fx.Module("store", fx.Invoke(showStore))
 ```
 
 ### Ordinary Fx without describe
 
-Use ordinary `fx.Module` values and install `confx.Module()` once at the root.
-Neither `MakeModule` nor `Runtime` is required:
+Register configs at the root and install `confx.Module()` once. Service modules
+use ordinary Fx options; neither `MakeModule` nor `Runtime` is required:
 
 ```go
-var ServerModule = fx.Module("server",
-	confx.Provide[ServerConfig]("server"),
-	fx.Invoke(showServer),
-)
-
-var StoreModule = fx.Module("store",
-	confx.Provide[StoreConfig]("store"),
-	fx.Invoke(showStore),
-)
-
 func main() {
-	fx.New(confx.Module(), ServerModule, StoreModule).Run()
+	fx.New(
+		confx.Module(),
+		confx.Provide[ServerConfig]("server"),
+		confx.Provide[StoreConfig]("store"),
+		ServerModule,
+		StoreModule,
+	).Run()
 }
 ```
 
@@ -92,30 +91,25 @@ To configure loading, pass core options to `confx.Module(opts...)`, for example
 
 ### App with help and describe
 
-Use `MakeModule` for configuration-bearing branches and `Runtime` for service
-providers, invocations and decorators that description should skip:
+Keep config declarations visible at the root and wrap service modules in
+`Runtime`. The same service modules work with both entry points:
 
 ```go
-var ServerModule = confx.MakeModule("server",
-	confx.Provide[ServerConfig]("server"),
-	confx.Runtime(fx.Invoke(showServer)),
-)
-
-var StoreModule = confx.MakeModule("store",
-	confx.Provide[StoreConfig]("store"),
-	confx.Runtime(fx.Invoke(showStore)),
-)
-
 func main() {
-	confx.New(ServerModule, StoreModule).Run()
+	confx.New(
+		confx.Provide[ServerConfig]("server"),
+		confx.Provide[StoreConfig]("store"),
+		confx.Runtime(
+			ServerModule,
+			StoreModule,
+		),
+	).Run()
 }
 ```
 
-In a larger application these modules live in domain packages, so main can be
-just `confx.New(server.Module, store.Module, orders.Module).Run()`.
 App installs the adapter itself; do not add `confx.Module()` or `FromLoader`.
-Service constructors registered with `fx.Provide` inside `Runtime` consume the
-same typed configs normally.
+Service constructors consume the same typed configs normally. Keep registration
+outside `Runtime`, including inside its nested ordinary Fx modules.
 
 Both examples read `SERVER_PORT` and `STORE_HOST`, with defaults `8080` and
 `localhost:5432`. The invocations only demonstrate injection; they do not start
@@ -146,7 +140,11 @@ custom flags and manual startup, see the following sections.
 `WithOptions` appends loader options and returns a new composition:
 
 ```go
-confx.New(ServerModule, StoreModule).WithOptions(
+confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
+).WithOptions(
 	confmaker.WithDiagnosticHandler(handleReport),
 ).Run()
 ```
@@ -156,7 +154,11 @@ App descriptions include defaults unless configured otherwise. To skip default
 evaluation without changing runtime loading or disabling CLI:
 
 ```go
-confx.New(ServerModule, StoreModule).WithManifestOptions().Run()
+confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
+).WithManifestOptions().Run()
 ```
 
 `App.Manifest(opts...)` applies saved options followed by the call's options.
@@ -180,8 +182,8 @@ at construction time; `Runtime` does not defer them until Start. Loading errors
 prevent startup. The adapter adds no cancellation or engine resource lifecycle
 to Fx construction.
 
-`Module`, `App.FX` and `Modules.FX` create a fresh loader per Fx application.
-App/Modules install the adapter automatically; do not combine their `FX()` with
+`Module` and `App.FX` create a fresh loader per Fx application.
+App installs the adapter automatically; do not combine its `FX()` with
 `Module` or `FromLoader`. Options can be reused; supplied engines and callbacks
 remain shared. Treat loaded configuration values, including maps and slices, as
 read-only. Caller-owned loaders follow the [external loader](#external-loader)
@@ -189,7 +191,8 @@ contract instead.
 
 ## Modules and instances
 
-Nest `MakeModule` values to preserve Fx private-provider visibility and decorator
+For advanced compositions that keep config registration inside domain modules,
+nest `MakeModule` values to preserve Fx private-provider visibility and decorator
 scopes. A plain `fx.Module` hides declarations from offline inspection; use
 `MakeModule` on configuration-bearing branches and `Runtime` on service-only branches.
 
@@ -227,14 +230,15 @@ Fx even if their instance names differ. `WithPrefix` never changes the Fx tag.
 ## Configuration engines
 
 The default engine reads ENV with confmaker tags and rules. Configure it through
-`Module(opts...)` or `App.WithOptions` / `Modules.WithOptions`.
+`Module(opts...)` or `App.WithOptions`.
 
 A custom engine is selected once for the same composition:
 
 ```go
-modules := confx.MakeModules(
-	ServerModule,
-	StoreModule,
+definition := confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
 ).WithOptions(
 	confmaker.WithEngine(engine),
 	confmaker.WithDiagnosticHandler(handleReport),
@@ -266,11 +270,15 @@ return `confmaker.ErrManifestUnsupported`. App help remains available.
 
 Inspect construction errors on the `fx.App` returned by `fx.New`.
 
-With the App modules above (and imports for `log` and confmaker), core structured
+With the App composition above (and imports for `log` and confmaker), core structured
 errors remain reachable through Fx's wrappers:
 
 ```go
-definition := confx.New(ServerModule, StoreModule)
+definition := confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
+)
 fxApp := fx.New(definition.FX())
 if err := fxApp.Err(); err != nil {
 	for _, problem := range confmaker.ConfigErrors(err) {
@@ -286,7 +294,7 @@ not core `ConfigError` diagnostics. Nil adapter arguments can be recognized with
 this also works through `fxApp.Err()`.
 
 Use `confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) { ... })`
-through `App.WithOptions` / `Modules.WithOptions` (or the standalone `Module`) for a value-free report
+through `App.WithOptions` (or the standalone `Module`) for a value-free report
 during app construction, including load errors.
 With an external loader, `WithDiagnostics()` enables `loader.Report()` snapshots.
 The loader owns the report; there is no separate receiver. Callbacks run after
@@ -298,12 +306,12 @@ errors; reports describe configuration loading, not the entire Fx application.
 
 ## Manifest and describe
 
-Use the App modules from the quick start as the declaration tree. Manifest
+Use the App composition from the quick start as the declaration tree. Manifest
 does not build Fx, load ENV, invoke services or call load diagnostics. It does
 not validate the Fx graph or all load-only options.
 
-`App.Manifest` includes defaults by default; `Modules.Manifest` requires
-`confmaker.IncludeDefaults()` explicitly. Defaults and renderers are application
+`App.Manifest` includes defaults by default. Use `WithManifestOptions()` to
+skip default evaluation. Defaults and renderers are application
 code and may perform I/O, including reading ENV.
 
 To avoid incomplete output, manifest rejects opaque options outside `Runtime`,
@@ -319,36 +327,59 @@ cannot be detected. Go argument evaluation and package `init` run normally, even
 in description mode. See [Configuration engines](#configuration-engines) for
 the custom-engine limitation.
 
-### Custom CLI with Modules
+### Custom CLI and manual lifecycle
 
-For a custom CLI, compose the modules once in your application. `describe` below
-is a `confcli.MakeDescribeFlag` already parsed by your own flag parser. Only this
-manual path leaves flag parsing with the application; `App.Run` handles it itself.
-Use `App.Manifest()` and `App.FX()` instead if you prefer the App composition.
+Use `App.Manifest` with your own flag parser, or pass the App to
+`confcli.Describe`. The same composition supplies the Fx application:
 
 ```go
-modules := confx.MakeModules(
-	ServerModule,
-	StoreModule,
-).WithOptions(
-	confmaker.WithDiagnosticHandler(handleReport),
+definition := confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
 )
 
-if describe.Requested() {
-	manifest, err := modules.Manifest(confmaker.IncludeDefaults())
-	if err != nil {
-		log.Fatal(err)
-	}
+isDescribed, err := confcli.Describe(definition, os.Args[1:], os.Stdout)
+if err != nil {
+	log.Fatal(err)
+}
 
-	if err := describe.Write(os.Stdout, manifest); err != nil {
-		log.Fatal(err)
-	}
-
+if isDescribed {
 	return
 }
 
-fx.New(modules.FX()).Run()
+fxApp := fx.New(definition.FX())
+fxApp.Run()
 ```
+
+For a cronjob, use Fx's `Start`/`Stop` and `fx.Populate` instead of `Run` to retain
+control of the task and cleanup. `App.FX()` does not parse flags or exit.
+
+## Migration from 0.6.x
+
+Version 0.6.2 removes `Modules`, `MakeModules` and the exported `ModuleSpec` type.
+`App` is the single composition API; `MakeModule` now returns `fx.Option` with
+private declaration metadata. Nested Fx scopes remain supported.
+
+| Previous API | Replacement |
+| --- | --- |
+| `MakeModules(opts...)` | `New(opts...).WithManifestOptions()` |
+| `*confx.Modules` | `*confx.App` |
+| `modules.WithOptions(opts...)` | `app.WithOptions(opts...)` |
+| `modules.Manifest(opts...)` | `app.Manifest(opts...)` on the replacement above |
+| `modules.FX()` | `app.FX()` |
+| `*confx.ModuleSpec` variables/results | `fx.Option` |
+
+Choose plain `New(opts...)` when defaults should be included. Replacing
+`MakeModules` with `New` without `WithManifestOptions()` changes manifest behavior
+and can execute user defaults. Replace zero `Modules` with
+`New().WithManifestOptions()` for the old description policy.
+
+Functions that return `*confx.ModuleSpec`, including variables holding the
+`MakeModule` constructor, must change their result type to `fx.Option`.
+Use `MakeModule` to construct module options; concrete struct literals and type
+assertions against the old exported type are no longer supported.
+External loader/handle adapters remain supported and are not deprecated.
 
 ## External loader
 
@@ -413,7 +444,11 @@ For the App variant, keep CLI parsing out of the test and use `FX()` with
 `fx.Populate`. This fragment belongs inside a test using the App modules above:
 
 ```go
-definition := confx.New(ServerModule, StoreModule).WithOptions(
+definition := confx.New(
+	confx.Provide[ServerConfig]("server"),
+	confx.Provide[StoreConfig]("store"),
+	confx.Runtime(ServerModule, StoreModule),
+).WithOptions(
 	confmaker.WithEnv(map[string]string{"SERVER_PORT": "9090"}),
 )
 var got ServerConfig

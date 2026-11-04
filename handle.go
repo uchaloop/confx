@@ -17,7 +17,7 @@ var ErrHandleIsNil = errors.New("handle is nil")
 // handles fail app construction before loading the application's configs.
 // A nil handle produces [ErrHandleIsNil] in fx.App.Err.
 func FromHandle[T any](handle *confmaker.Handle[T]) fx.Option {
-	return legacyOption{optionBridge: fromHandle(handle, "")}
+	return standaloneOption{optionBridge: fromHandle(handle, "")}
 }
 
 // FromHandleNamed provides an existing registration with its registration name
@@ -25,10 +25,10 @@ func FromHandle[T any](handle *confmaker.Handle[T]) fx.Option {
 // A nil handle produces [ErrHandleIsNil] in fx.App.Err.
 func FromHandleNamed[T any](handle *confmaker.Handle[T]) fx.Option {
 	if handle == nil {
-		return legacyOption{optionBridge: fx.Error(ErrHandleIsNil)}
+		return standaloneOption{optionBridge: fx.Error(ErrHandleIsNil)}
 	}
 
-	return legacyOption{optionBridge: fromHandle(handle, utilfx.NameTag(handle.Name()))}
+	return standaloneOption{optionBridge: fromHandle(handle, utilfx.NameTag(handle.Name()))}
 }
 
 func fromHandle[T any](handle *confmaker.Handle[T], tag string) fx.Option {

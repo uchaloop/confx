@@ -58,7 +58,7 @@ type handleKey struct{ _ byte }
 func Module(opts ...confmaker.LoaderOption) fx.Option {
 	opts = slices.Clone(opts)
 
-	return legacyOption{optionBridge: makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)}
+	return standaloneOption{optionBridge: makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)}
 }
 
 // FromLoader uses an existing loader instead of Module. A nil loader produces
@@ -70,10 +70,10 @@ func Module(opts ...confmaker.LoaderOption) fx.Option {
 // across apps shares its values and one-shot load state.
 func FromLoader(loader *confmaker.Loader) fx.Option {
 	if loader == nil {
-		return legacyOption{optionBridge: fx.Error(ErrLoaderIsNil)}
+		return standaloneOption{optionBridge: fx.Error(ErrLoaderIsNil)}
 	}
 
-	return legacyOption{optionBridge: makeModule(func() *confmaker.Loader { return loader }, externalHandles)}
+	return standaloneOption{optionBridge: makeModule(func() *confmaker.Loader { return loader }, externalHandles)}
 }
 
 func makeModule(makeLoader func() *confmaker.Loader, mode registrationMode) fx.Option {
@@ -119,7 +119,7 @@ func makeModule(makeLoader func() *confmaker.Loader, mode registrationMode) fx.O
 // Provide registers a config with the required instance name and provides it
 // without an Fx tag. With the built-in engine, confmaker validates the name and derives its ENV
 // prefix; [confmaker.WithPrefix] overrides only the prefix. Install [Module] once
-// with direct fx.New; [App.FX] and [Modules.FX] install it automatically.
+// with direct fx.New; [App.FX] installs it automatically.
 // FromLoader cannot be mixed with Provide.
 // The config is loaded during fx.New even when no constructor consumes it.
 func Provide[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
@@ -129,7 +129,7 @@ func Provide[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
 // ProvideNamed registers a config with the required instance name and provides
 // it with the Fx tag name:"<name>". With the built-in engine, the name determines the default prefix;
 // [confmaker.WithPrefix] can override the prefix. Install [Module] once with
-// direct fx.New; [App.FX] and [Modules.FX] install it automatically.
+// direct fx.New; [App.FX] installs it automatically.
 // Loading happens during fx.New as for [Provide].
 func ProvideNamed[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
 	return provide[T](name, opts, utilfx.NameTag(name))

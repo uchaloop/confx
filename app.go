@@ -15,24 +15,25 @@ import (
 // and process-level startup. Its zero value is equivalent to New().
 // Use Manifest and FX for custom command-line handling or a manual Fx lifecycle.
 type App struct {
-	modules              Modules
+	modules              []fx.Option
+	loaderOptions        []confmaker.LoaderOption
 	manifestOptions      []confmaker.ManifestOption
 	isManifestOptionsSet bool
 }
 
 // New captures modules without constructing an Fx app, loading configuration,
 // or evaluating defaults. Go argument evaluation and package init still run
-// normally. Use MakeModule for configuration branches and Runtime for ordinary
-// Fx options that offline description should skip.
+// normally. Declare configs at the root and wrap service modules in Runtime.
+// MakeModule also supports nested configuration branches with Fx scopes.
 func New(modules ...fx.Option) *App {
-	return &App{modules: *MakeModules(modules...)}
+	return &App{modules: slices.Clone(modules)}
 }
 
 // WithOptions returns a clone with additional confmaker loader options. Each Fx
 // application receives a fresh loader; supplied engines and callbacks are shared.
 func (a *App) WithOptions(opts ...confmaker.LoaderOption) *App {
 	clone := *a
-	clone.modules = *a.modules.WithOptions(opts...)
+	clone.loaderOptions = append(slices.Clone(a.loaderOptions), opts...)
 
 	return &clone
 }
@@ -49,8 +50,8 @@ func (a *App) WithManifestOptions(opts ...confmaker.ManifestOption) *App {
 }
 
 // Manifest describes the composition without constructing Fx or loading ENV.
-// Unlike Modules.Manifest, it includes defaults by default, executing user
-// defaults and renderers. Use WithManifestOptions() to disable that behavior.
+// It includes defaults by default, executing user defaults and renderers.
+// Use WithManifestOptions() to disable that behavior.
 // Additional opts follow the saved options. Custom engines do not support
 // manifests; opaque options outside Runtime are rejected before defaults run.
 func (a *App) Manifest(opts ...confmaker.ManifestOption) (confmaker.ManifestResult, error) {
@@ -59,7 +60,23 @@ func (a *App) Manifest(opts ...confmaker.ManifestOption) (confmaker.ManifestResu
 		options = []confmaker.ManifestOption{confmaker.IncludeDefaults()}
 	}
 
-	return a.modules.Manifest(append(options, opts...)...)
+	var declarations []func(*confmaker.Loader)
+
+	if err := inspectOptions(
+		a.modules,
+		"root",
+		true,
+		&declarations,
+	); err != nil {
+		return confmaker.ManifestResult{}, err
+	}
+
+	loader := confmaker.MakeLoader(a.loaderOptions...)
+	for _, register := range declarations {
+		register(loader)
+	}
+
+	return loader.Manifest(append(options, opts...)...)
 }
 
 // FX returns the composition's Fx option without constructing an application
@@ -67,7 +84,18 @@ func (a *App) Manifest(opts ...confmaker.ManifestOption) (confmaker.ManifestResu
 // combine it with Module or FromLoader. Use fx.New(a.FX(), ...) for manual
 // lifecycle control or additional runtime-only options such as fx.Populate.
 func (a *App) FX() fx.Option {
-	return a.modules.FX()
+	if err := inspectOptions(
+		a.modules,
+		"root",
+		false,
+		nil,
+	); err != nil {
+		return fx.Error(err)
+	}
+
+	opts := []fx.Option{Module(a.loaderOptions...)}
+
+	return fx.Options(append(opts, a.modules...)...)
 }
 
 // Run handles -help and -describe=env|markdown|json before constructing Fx.
