@@ -4,6 +4,14 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
+## [0.6.1] - 2026-11-04
+
+### Changed
+
+- Updated confmaker/v2 to v2.1.1 in the adapter, secret integration and engine
+  examples. Configuration descriptions now mark non-reflexive map defaults as
+  unrenderable, detect short help writes and use an ASCII Markdown placeholder.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added
@@ -129,3 +137,5 @@ Entries are grouped by version and change type, with the newest version first.
 [0.3.0]: https://github.com/uchaloop/confx/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/uchaloop/confx/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/uchaloop/confx/releases/tag/v0.1.0
+
+[0.6.1]: https://github.com/uchaloop/confx/compare/v0.6.0...HEAD
