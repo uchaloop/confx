@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	c "github.com/uchaloop/confmaker/v2"
+	"github.com/uchaloop/confmaker/v2"
 	"go.uber.org/fx"
 )
 
@@ -23,16 +23,21 @@ func TestOpaqueOptionsRejectedBeforeDefaults(t *testing.T) {
 	} {
 		defaultsCalls = 0
 		modules := MakeModules(MakeModule("parent", Provide[defaultConfig]("first"), MakeModule("child", opt)))
-		result, err := modules.Manifest(c.IncludeDefaults())
+		result, err := modules.Manifest(confmaker.IncludeDefaults())
 		if !errors.Is(err, ErrOpaqueOption) || !strings.Contains(err.Error(), "child/options[0]") || result.Configs != nil || defaultsCalls != 0 {
-			t.Fatalf("result=%+v error=%v defaults=%d", result, err, defaultsCalls)
+			t.Fatalf(
+				"result=%+v error=%v defaults=%d",
+				result,
+				err,
+				defaultsCalls,
+			)
 		}
 	}
 }
 
 func TestRuntimeRejectsConfigurationOptions(t *testing.T) {
 	var typedNil *ModuleSpec
-	loader := c.MakeLoader()
+	loader := confmaker.MakeLoader()
 	handle := loader.Register[config]("server")
 
 	for _, opt := range []fx.Option{
@@ -76,16 +81,16 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 	module := MakeModule("server",
 		ProvideNamed[config]("primary"),
 		MakeModule("replica",
-			ProvideNamed[config]("replica", c.WithPrefix("READ_")),
+			ProvideNamed[config]("replica", confmaker.WithPrefix("READ_")),
 		),
 	)
-	modules := MakeModules(module).WithOptions(c.WithEnv(map[string]string{"PRIMARY_PORT": "1", "READ_PORT": "2"}))
+	modules := MakeModules(module).WithOptions(confmaker.WithEnv(map[string]string{"PRIMARY_PORT": "1", "READ_PORT": "2"}))
 
 	result, err := modules.Manifest()
 	if err != nil || len(result.Configs) != 2 {
 		t.Fatalf("%+v %v", result, err)
 	}
-	consumed := false
+	isConsumed := false
 
 	app := fx.New(fx.NopLogger, modules.FX(), fx.Invoke(func(p struct {
 		fx.In
@@ -93,12 +98,12 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 		Primary config `name:"primary"`
 		Replica config `name:"replica"`
 	}) {
-		consumed = true
+		isConsumed = true
 		if p.Primary.Port != 1 || p.Replica.Port != 2 {
 			t.Fatal(p)
 		}
 	}))
-	if app.Err() != nil || !consumed {
+	if app.Err() != nil || !isConsumed {
 		t.Fatal(app.Err())
 	}
 	if _, err := MakeModules(module, module).Manifest(); err == nil {
@@ -107,12 +112,12 @@ func TestNamedCompositionAndDuplicateDeclarations(t *testing.T) {
 }
 
 func TestConcurrentCompositionReuse(t *testing.T) {
-	reports := make(chan c.LoadReport, 2)
+	reports := make(chan confmaker.LoadReport, 2)
 	modules := MakeModules(
 		MakeModule("server", Provide[config]("server")),
 	).WithOptions(
-		c.WithEnv(map[string]string{"SERVER_PORT": "1"}),
-		c.WithDiagnosticHandler(func(report c.LoadReport) {
+		confmaker.WithEnv(map[string]string{"SERVER_PORT": "1"}),
+		confmaker.WithDiagnosticHandler(func(report confmaker.LoadReport) {
 			reports <- report
 		}),
 	)
@@ -156,6 +161,11 @@ func TestEmptyCompositionAndRuntimeScope(t *testing.T) {
 
 	app := fx.New(fx.NopLogger, fx.Supply("root"), scoped.FX())
 	if app.Err() != nil || child != "root/parent" || sibling != "root" {
-		t.Fatalf("%v %s %s", app.Err(), child, sibling)
+		t.Fatalf(
+			"%v %s %s",
+			app.Err(),
+			child,
+			sibling,
+		)
 	}
 }

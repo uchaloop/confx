@@ -1,128 +1,82 @@
 /*
-Package confx adapts github.com/uchaloop/confmaker/v2 to Uber Fx. The application
-explicitly registers its package configs; confmaker owns configuration engines, defaults,
-validation and diagnostics, while confx provides the resulting typed values.
-The adapter supports both the built-in ENV engine and application-supplied engines.
+Package confx provides confmaker configuration values to Uber Fx. Confmaker owns
+defaults, decoding, validation and diagnostics; confx owns registration and typed
+injection. Import github.com/uchaloop/confmaker/v2 for core loader/config options.
 
-Import github.com/uchaloop/confx for registration and
-github.com/uchaloop/confmaker/v2 when using core options such as WithEnv or
-WithPrefix.
+# Ordinary Fx
 
-# Quick start
+Install [Module] once and register configs with [Provide] or [ProvideNamed].
+Ordinary Fx modules need no description-specific wrappers:
 
-Declare configuration in the domain and place ordinary Fx options in Runtime:
+	server := fx.Module("server", confx.Provide[ServerConfig]("server"))
+	store := fx.Module("store", confx.Provide[StoreConfig]("store"))
+	fx.New(confx.Module(), server, store).Run()
 
-	var Module = confx.MakeModule("store",
-		confx.Provide[Config]("store"),
-		confx.Runtime(fx.Provide(makeService)),
+ServerConfig and StoreConfig are application types. The package example shows
+both modules with consumers and an isolated ENV map. For a required field,
+see the Provide example; for multiple instances, see the ProvideNamed example.
+
+# App with help and describe
+
+For configuration description, preserve declarations with [MakeModule] and wrap
+service constructors, invocations and decorators in [Runtime]:
+
+	server := confx.MakeModule("server",
+		confx.Provide[ServerConfig]("server"),
+		confx.Runtime(fx.Invoke(showServer)),
 	)
+	store := confx.MakeModule("store",
+		confx.Provide[StoreConfig]("store"),
+		confx.Runtime(fx.Invoke(showStore)),
+	)
+	confx.New(server, store).Run()
 
-Compose domain modules once:
+The New example shows both modules with consumers. [New] captures the composition
+lazily. [App.Run] handles help and describe before constructing Fx, then delegates
+normal startup to Fx. It may exit the process, skipping caller defers. For custom
+CLI handling or manual lifecycle control, use [App.Manifest] and [App.FX]; the FX
+example demonstrates injection through fx.Populate. App has no Err/Start/Stop
+methods. Its method documentation defines CLI behavior and option precedence.
 
-	modules := confx.MakeModules(store.Module, orders.Module)
-	fx.New(modules.FX()).Run()
+# Loading and ownership
 
-FX installs one core adapter per application. Do not add Module or FromLoader
-alongside it. WithOptions returns a new composition with shared core loader
-options; each Fx application gets a fresh loader.
+All registered configs, including unused ones, load during fx.New, before Start.
+Errors reach fx.App.Err and prevent startup. Runtime does not defer invocations
+until Start. Module, [App.FX] and [Modules.FX] create a fresh loader per Fx app;
+the FX methods install Module automatically. Do not add another adapter.
+Treat loaded config values, including maps and slices, as read-only.
 
-# Registration and instances
+Loader options may supply custom engines and diagnostic callbacks. Reused engines
+and callbacks remain shared and must support concurrent use when applicable.
+Engine resources remain caller-owned; confx adds no cancellation or resource
+lifecycle to Fx construction. Custom engines do not support manifest/describe.
+
+# Registration, errors and diagnostics
 
 Provide supplies an untagged value; ProvideNamed uses the registration name as
-its Fx name tag. With the built-in engine, the name also determines the ENV prefix;
-WithPrefix overrides only that prefix. A custom engine owns source lookup and tags.
-The original Module plus Provide API remains available for ordinary Fx composition
-when offline manifest collection is not needed.
+its Fx name tag. With the built-in engine, the name also determines the ENV
+prefix; confmaker.WithPrefix changes only that prefix. Multiple values of one Go
+type need distinct Fx identities. A custom engine owns source lookup and tags.
 
-# Lifecycle
+Use errors.Is with [ErrLoaderIsNil], [ErrHandleIsNil] and [ErrOpaqueOption]. Core
+diagnostics remain accessible through confmaker.ConfigErrors and errors.As.
+Graph errors need not be configuration errors: always handle fx.App.Err itself.
+confmaker.WithDiagnosticHandler provides a value-free load report; it does not
+run if Fx rejects the graph before loading. Backend errors may contain values.
 
-Every provided config is loaded during fx.New, including configs with no
-consumer. Loading errors are available from fx.App.Err and prevent startup.
-Options returned by Provide and ProvideNamed may be reused across applications;
-each application has its own loader and config values.
+# External loaders and offline description
 
-# Multiple instances and errors
+[FromLoader] uses a caller-owned loader with [FromHandle] / [FromHandleNamed].
+Do not mix that mode with Module/Provide. Reusing an external loader shares its
+load state and values. Its LoadContext and Report methods remain available;
+the adapter documentation specifies ownership checks and nil-handle behavior.
 
-Use Provide for an untagged value. Two values of the same Go type need distinct
-Fx identities, even when their ENV prefixes differ. ProvideNamed uses the
-instance name as that identity:
-
-	fx.Invoke(func(params struct {
-		fx.In
-
-		Primary postgres.Config
-		Replica postgres.Config `name:"replica"`
-	}) {
-		fmt.Println(params.Primary.Host, params.Replica.Host)
-	})
-
-Inspect construction errors with app.Err(). Core ConfigError diagnostics remain
-reachable through confmaker.ConfigErrors and errors.As. Missing Module or
-conflicting Fx providers are adapter or Fx errors, not core config diagnostics.
-Loaded configs should be treated as read-only, including their maps and slices.
-
-# External registrations
-
-[FromLoader] uses a caller-owned confmaker.Loader. [FromHandle] and
-[FromHandleNamed] provide existing handles without registering them again. A
-named handle uses Handle.Name as its Fx tag. All handles must belong to the same
-loader. Exactly one Module or FromLoader may be installed.
-
-For offline documentation, register configs externally and generate the manifest
-before fx.New. Normal startup can then use Run or explicit Start/Stop. Module
-accepts only Provide/ProvideNamed, while FromLoader accepts only
-FromHandle/FromHandleNamed. Mixing modes or supplying a foreign handle fails
-before registrations or loading and leaves the external loader unchanged.
-Previously loaded loaders retain their results. Reusing an external loader
-across apps shares its load state and
-values. The adapter does not interpret command-line flags or exit the process.
-
-# Custom engines
-
-Module accepts confmaker.LoaderOption, including confmaker.WithEngine. An external
-loader can select the same backend. Every app has its own loader, but reusing a
-Module option shares the supplied Engine object, which must support concurrent
-calls across loaders. Its resources remain caller-owned. Loading still occurs
-at fx.New; this adapter adds no context or backend resource lifecycle.
-Custom engines provide config-level reports and do not support Loader.Manifest.
-Names accepted by the core remain subject to Fx named-tag restrictions.
-Runnable env/v11 and koanf + TOML applications live in the separate
-examples/engines module. Their dependencies are not part of this package.
-ExampleModule_customEngine demonstrates a standard-library JSON decoder.
-
-# Load diagnostics
-
-Pass confmaker.WithDiagnosticHandler through WithOptions or Module for a value-free report
-before a loading error reaches Fx, preserving fx.New(...).Run(). For explicit
-inspection, enable confmaker.WithDiagnostics() on an external loader and read
-loader.Report after fx.New,
-before Run. External loaders accept the same core options. If Fx rejects the
-graph before loading, the handler is not called and an enabled loader report
-stays in the not_started state.
-
-# Module composition and offline description
-
-MakeModule preserves configuration declarations beside a real Fx module.
-MakeModules composes one tree for Manifest and FX; WithOptions returns a copy
-with shared core loader options. FX installs Module itself and creates a fresh
-loader per application. Do not combine it with Module or FromLoader.
-
-Wrap service providers, invocations and decorators in Runtime. Manifest rejects
-opaque options outside Runtime with ErrOpaqueOption, before executing defaults,
-and returns no partial result. Runtime asserts that its contents have no config
-registrations; configurations hidden in opaque Fx wrappers cannot be discovered.
-Nested MakeModule preserves module scopes. Manifest runs no Fx constructors or
-invocations; IncludeDefaults still runs user defaults and renderers. It neither
-validates the Fx graph nor all load-only options. Go argument evaluation and init
-are outside this guarantee. Custom engines do not support Manifest.
-
-# Core library
-
-The core also works without Fx:
-
-	cfg, err := confmaker.Load[postgres.Config]("postgres")
-
-Declaring configs, options, the manifest and loading rules are documented in
-package github.com/uchaloop/confmaker/v2.
+[MakeModules] supports composition without App. Manifest inspects MakeModule
+declarations and skips Runtime; opaque options outside Runtime are rejected
+before defaults run. [App.Manifest] includes defaults by default, while
+[Modules.Manifest] requires confmaker.IncludeDefaults. User defaults/renderers
+can perform I/O; manifest does not validate the Fx graph or all load-only options.
+See Runtime for the boundary of offline inspection and the MakeModules example
+for explicit description followed by Fx construction.
 */
 package confx

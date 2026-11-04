@@ -4,6 +4,32 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
+## [0.6.0] - Unreleased
+
+### Added
+
+- Added `ErrLoaderIsNil` and `ErrHandleIsNil` for recognizing invalid adapter
+  arguments with `errors.Is`, including through Fx errors.
+
+- Added `App` and lazy `New(...).Run()` with built-in help and configuration
+  description before Fx construction.
+- Added immutable `App.WithOptions` and `App.WithManifestOptions` configuration.
+  App descriptions include defaults by default; an empty `WithManifestOptions()`
+  disables their evaluation without changing runtime loading.
+- Added `App.Manifest` and `App.FX` for custom CLI handling, programmatic
+  description and manual Fx lifecycle control.
+
+### Changed
+
+- Simplified adapter error messages; callers should use error identities where
+  available rather than match complete message text.
+
+- Updated confmaker/v2 to v2.1.0 in the adapter, secret integration and engine
+  examples to use the published configuration-description helper.
+- Clarified documentation and examples for direct Fx registration without
+  description commands and application startup through `App`, using multiple
+  domain modules in both paths.
+
 ## [0.5.1]
 
 ### Added
@@ -95,6 +121,7 @@ Entries are grouped by version and change type, with the newest version first.
 - Published the initial standalone release of the confx Uber Fx adapter.
 - Established an independent module, dependencies, tests and release workflow.
 
+[0.6.0]: https://github.com/uchaloop/confx/compare/v0.5.1...HEAD
 [0.5.1]: https://github.com/uchaloop/confx/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/uchaloop/confx/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/uchaloop/confx/compare/v0.4.0...v0.4.1

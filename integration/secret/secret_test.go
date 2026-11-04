@@ -20,9 +20,9 @@ type config struct {
 func (c *config) SetDefaults() { c.Token = secret.New("private-default") }
 
 func TestSecretInBothRegistrationModes(t *testing.T) {
-	for _, external := range []bool{false, true} {
+	for _, isExternal := range []bool{false, true} {
 		name := "module"
-		if external {
+		if isExternal {
 			name = "external"
 		}
 		t.Run(name, func(t *testing.T) {
@@ -32,8 +32,8 @@ func TestSecretInBothRegistrationModes(t *testing.T) {
 				confmaker.WithEnv(map[string]string{"APP_TOKEN": "private-input"}),
 				confmaker.WithDiagnosticHandler(func(r confmaker.LoadReport) { report = r }),
 			}
-			wiring := []fx.Option{fx.NopLogger, fx.Populate(&got)}
-			if external {
+			options := []fx.Option{fx.NopLogger, fx.Populate(&got)}
+			if isExternal {
 				loader := confmaker.MakeLoader(opts...)
 				handle := loader.Register[config]("app")
 				manifest, err := loader.Manifest(confmaker.IncludeDefaults())
@@ -51,11 +51,11 @@ func TestSecretInBothRegistrationModes(t *testing.T) {
 				if strings.Contains(out.String(), "private-") {
 					t.Fatal("manifest disclosed secret")
 				}
-				wiring = append(wiring, confx.FromLoader(loader), confx.FromHandle(handle))
+				options = append(options, confx.FromLoader(loader), confx.FromHandle(handle))
 			} else {
-				wiring = append(wiring, confx.Module(opts...), confx.Provide[config]("app"))
+				options = append(options, confx.Module(opts...), confx.Provide[config]("app"))
 			}
-			if err := fx.New(wiring...).Err(); err != nil {
+			if err := fx.New(options...).Err(); err != nil {
 				t.Fatal(err)
 			}
 			if got.Token.Reveal() != "private-input" {

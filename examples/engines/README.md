@@ -6,6 +6,11 @@ ProvideNamed injects primary and replica configs into makeService through fx.In.
 No app.Start is needed to inspect loaded values; unrelated constructors can still
 run during fx.New.
 
+These examples intentionally use manual Fx construction through Modules.FX and
+return after demonstrating injection. App.Run would wait for shutdown signals.
+The engines also work with App.WithOptions at runtime, but custom engines do not
+support App.Manifest or -describe; App's -help remains available.
+
 | Directory | Backend | Native tags | Sources |
 | --- | --- | --- | --- |
 | env11 | caarlos0/env/v11 | env, envDefault | Complete maps per registration |

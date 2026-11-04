@@ -34,13 +34,13 @@ func Runtime(opts ...fx.Option) fx.Option {
 
 func checkRuntimeOptions(opts []fx.Option) error {
 	for i, opt := range opts {
-		if nilOption(opt) {
-			return fmt.Errorf("confx: nil Runtime option at index %d", i)
+		if isNilOption(opt) {
+			return fmt.Errorf("nil Runtime option at index %d", i)
 		}
 
 		switch opt := opt.(type) {
 		case declaredOption, *ModuleSpec, legacyOption:
-			return fmt.Errorf("confx: configuration option inside Runtime at index %d", i)
+			return fmt.Errorf("configuration option inside Runtime at index %d", i)
 		case runtimeOption:
 			if opt.err != nil {
 				return opt.err

@@ -23,8 +23,8 @@ func makeEngine(environments map[string]map[string]string) confmaker.Engine {
 			return err
 		}
 
-		values, ok := snapshot[req.Name]
-		if !ok {
+		values, isFound := snapshot[req.Name]
+		if !isFound {
 			return fmt.Errorf("no environment for registration %q", req.Name)
 		}
 

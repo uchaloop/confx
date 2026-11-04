@@ -31,6 +31,4 @@ go.work.sum
 .idea/
 .vscode/
 
-.superpowers/
-
 .DS_Store

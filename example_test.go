@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/uchaloop/confmaker/v2"
 	"github.com/uchaloop/confx"
@@ -14,31 +13,42 @@ import (
 // StoreConfig is the kind of config a library declares: plain fields, env tags,
 // and no knowledge of where the values come from.
 type StoreConfig struct {
-	Host    string        `env:"HOST,notEmpty"`
-	Timeout time.Duration `env:"TIMEOUT"`
+	Host string `env:"HOST"`
 }
 
-func (c *StoreConfig) SetDefaults() { c.Timeout = 30 * time.Second }
+func (c *StoreConfig) SetDefaults() { c.Host = "localhost:5432" }
 
 // Provide makes the config available to constructors. WithEnv stands in for the
 // process environment here; an application calls confx.Module() without it.
 func Example() {
 	env := confmaker.WithEnv(map[string]string{"STORE_HOST": "db:5432"})
 
-	app := fx.New(
-		fx.NopLogger,
-		confx.Module(env),
-		confx.Provide[StoreConfig]("store"),
-		fx.Invoke(func(cfg StoreConfig) {
-			fmt.Println(cfg.Host, cfg.Timeout)
+	server := fx.Module("server",
+		confx.Provide[ServerConfig]("server"),
+		fx.Invoke(func(cfg ServerConfig) {
+			fmt.Println("server port:", cfg.Port)
 		}),
 	)
-	if err := app.Err(); err != nil {
+	store := fx.Module("store",
+		confx.Provide[StoreConfig]("store"),
+		fx.Invoke(func(cfg StoreConfig) {
+			fmt.Println("store host:", cfg.Host)
+		}),
+	)
+
+	fxApp := fx.New(
+		fx.NopLogger,
+		confx.Module(env),
+		server,
+		store,
+	)
+	if err := fxApp.Err(); err != nil {
 		fmt.Println(err)
 	}
 
 	// Output:
-	// db:5432 30s
+	// server port: 8080
+	// store host: db:5432
 }
 
 // ProvideNamed provides a second instance of the same type under an Fx tag, with
@@ -135,4 +145,19 @@ func ExampleMakeModules() {
 	// Output:
 	// described: store
 	// loaded: db:5432
+}
+
+// A config without a default can require an explicit nonempty value.
+func ExampleProvide() {
+	type requiredConfig struct {
+		Host string `env:"HOST,notEmpty"`
+	}
+
+	fxApp := fx.New(
+		fx.NopLogger,
+		confx.Module(confmaker.WithEnv(map[string]string{})),
+		confx.Provide[requiredConfig]("store"),
+	)
+	fmt.Println("missing host:", fxApp.Err() != nil)
+	// Output: missing host: true
 }

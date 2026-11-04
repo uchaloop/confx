@@ -12,7 +12,7 @@ import (
 
 // ErrOpaqueOption means Manifest cannot inspect an option. Use MakeModule for
 // configuration modules and Runtime for options containing no registrations.
-var ErrOpaqueOption = errors.New("confx: opaque Fx option")
+var ErrOpaqueOption = errors.New("opaque option")
 
 // optionBridge promotes Fx's sealed Option interface without exposing a mutable
 // embedded Option field on ModuleSpec.
@@ -38,7 +38,12 @@ type ModuleSpec struct {
 func MakeModule(name string, opts ...fx.Option) *ModuleSpec {
 	opts = slices.Clone(opts)
 	option := fx.Module(name, opts...)
-	if err := inspectOptions(opts, name, false, nil); err != nil {
+	if err := inspectOptions(
+		opts,
+		name,
+		false,
+		nil,
+	); err != nil {
 		option = fx.Error(err)
 	}
 
@@ -79,7 +84,12 @@ func (m *Modules) WithOptions(opts ...confmaker.LoaderOption) *Modules {
 func (m *Modules) Manifest(opts ...confmaker.ManifestOption) (confmaker.ManifestResult, error) {
 	var declarations []func(*confmaker.Loader)
 
-	if err := inspectOptions(m.modules, "root", true, &declarations); err != nil {
+	if err := inspectOptions(
+		m.modules,
+		"root",
+		true,
+		&declarations,
+	); err != nil {
 		return confmaker.ManifestResult{}, err
 	}
 
@@ -92,9 +102,14 @@ func (m *Modules) Manifest(opts ...confmaker.ManifestOption) (confmaker.Manifest
 }
 
 // FX builds an Fx option with one fresh loader per application. Do not combine
-// it with Module or FromLoader. Ordinary opaque Fx options work in this path.
+// it with Module or FromLoader. Ordinary opaque options work in this path.
 func (m *Modules) FX() fx.Option {
-	if err := inspectOptions(m.modules, "root", false, nil); err != nil {
+	if err := inspectOptions(
+		m.modules,
+		"root",
+		false,
+		nil,
+	); err != nil {
 		return fx.Error(err)
 	}
 
@@ -103,11 +118,16 @@ func (m *Modules) FX() fx.Option {
 	return fx.Options(append(opts, m.modules...)...)
 }
 
-func inspectOptions(opts []fx.Option, path string, strict bool, declarations *[]func(*confmaker.Loader)) error {
+func inspectOptions(
+	opts []fx.Option,
+	path string,
+	isStrict bool,
+	declarations *[]func(*confmaker.Loader),
+) error {
 	for i, opt := range opts {
 		location := fmt.Sprintf("%s/options[%d]", path, i)
-		if nilOption(opt) {
-			return fmt.Errorf("confx: nil option at %s", location)
+		if isNilOption(opt) {
+			return fmt.Errorf("nil option at %s", location)
 		}
 
 		switch opt := opt.(type) {
@@ -117,10 +137,15 @@ func inspectOptions(opts []fx.Option, path string, strict bool, declarations *[]
 			}
 		case *ModuleSpec:
 			if opt.optionBridge == nil {
-				return fmt.Errorf("confx: zero ModuleSpec at %s", location)
+				return fmt.Errorf("zero ModuleSpec at %s", location)
 			}
 
-			if err := inspectOptions(opt.options, location+"/"+opt.name, strict, declarations); err != nil {
+			if err := inspectOptions(
+				opt.options,
+				location+"/"+opt.name,
+				isStrict,
+				declarations,
+			); err != nil {
 				return err
 			}
 		case runtimeOption:
@@ -128,9 +153,9 @@ func inspectOptions(opts []fx.Option, path string, strict bool, declarations *[]
 				return fmt.Errorf("%s: %w", location, opt.err)
 			}
 		case legacyOption:
-			return fmt.Errorf("confx: legacy loader or handle option at %s; use Provide with this composition", location)
+			return fmt.Errorf("legacy loader or handle option at %s; use Provide with this composition", location)
 		default:
-			if strict {
+			if isStrict {
 				return fmt.Errorf("%w at %s; use MakeModule or explicitly mark service options with Runtime", ErrOpaqueOption, location)
 			}
 		}
@@ -139,7 +164,7 @@ func inspectOptions(opts []fx.Option, path string, strict bool, declarations *[]
 	return nil
 }
 
-func nilOption(opt fx.Option) bool {
+func isNilOption(opt fx.Option) bool {
 	if opt == nil {
 		return true
 	}
