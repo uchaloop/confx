@@ -4,7 +4,7 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
-## [0.6.0] - Unreleased
+## [0.6.0] - 2026-11-04
 
 ### Added
 
