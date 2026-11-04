@@ -88,6 +88,6 @@ MakeModules(opts...) with New(opts...).WithManifestOptions() to preserve the
 old manifest defaults policy. MakeModule now returns fx.Option; use that type
 instead of the removed ModuleSpec in application signatures. The internal
 module representation is private. External loader adapters remain supported.
-See the README migration table.
+See the changelog for breaking changes and migration details.
 */
 package confx

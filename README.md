@@ -355,32 +355,6 @@ fxApp.Run()
 For a cronjob, use Fx's `Start`/`Stop` and `fx.Populate` instead of `Run` to retain
 control of the task and cleanup. `App.FX()` does not parse flags or exit.
 
-## Migration from 0.6.x
-
-Version 0.6.2 removes `Modules`, `MakeModules` and the exported `ModuleSpec` type.
-`App` is the single composition API; `MakeModule` now returns `fx.Option` with
-private declaration metadata. Nested Fx scopes remain supported.
-
-| Previous API | Replacement |
-| --- | --- |
-| `MakeModules(opts...)` | `New(opts...).WithManifestOptions()` |
-| `*confx.Modules` | `*confx.App` |
-| `modules.WithOptions(opts...)` | `app.WithOptions(opts...)` |
-| `modules.Manifest(opts...)` | `app.Manifest(opts...)` on the replacement above |
-| `modules.FX()` | `app.FX()` |
-| `*confx.ModuleSpec` variables/results | `fx.Option` |
-
-Choose plain `New(opts...)` when defaults should be included. Replacing
-`MakeModules` with `New` without `WithManifestOptions()` changes manifest behavior
-and can execute user defaults. Replace zero `Modules` with
-`New().WithManifestOptions()` for the old description policy.
-
-Functions that return `*confx.ModuleSpec`, including variables holding the
-`MakeModule` constructor, must change their result type to `fx.Option`.
-Use `MakeModule` to construct module options; concrete struct literals and type
-assertions against the old exported type are no longer supported.
-External loader/handle adapters remain supported and are not deprecated.
-
 ## External loader
 
 Use an external Loader when your application already owns configuration
