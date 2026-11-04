@@ -8,16 +8,16 @@ import (
 	"go.uber.org/fx"
 )
 
-type serverConfig struct {
+type ServerConfig struct {
 	Port int `env:"PORT"`
 }
 
-func (c *serverConfig) SetDefaults() { c.Port = 8080 }
+func (c *ServerConfig) SetDefaults() { c.Port = 8080 }
 
 func ExampleNew() {
 	server := confx.MakeModule("server",
-		confx.Provide[serverConfig]("server"),
-		confx.Runtime(fx.Invoke(func(cfg serverConfig) {
+		confx.Provide[ServerConfig]("server"),
+		confx.Runtime(fx.Invoke(func(cfg ServerConfig) {
 			fmt.Println("server port:", cfg.Port)
 		})),
 	)
@@ -29,13 +29,13 @@ func ExampleNew() {
 		})),
 	)
 
-	// Normal startup requires STORE_HOST; description does not load ENV.
+	// Defaults match the README: SERVER_PORT=8080, STORE_HOST=localhost:5432.
 	// In main, Run handles -help and -describe before starting Fx.
 	confx.New(server, store).Run()
 }
 
 func ExampleApp_Manifest() {
-	server := confx.MakeModule("server", confx.Provide[serverConfig]("server"))
+	server := confx.MakeModule("server", confx.Provide[ServerConfig]("server"))
 	store := confx.MakeModule("store", confx.Provide[StoreConfig]("store"))
 	definition := confx.New(server, store)
 	manifest, err := definition.Manifest()
@@ -53,7 +53,7 @@ func ExampleApp_Manifest() {
 // FX exposes the composition for testing and manual Fx lifecycle control.
 // Unlike Run, it does not parse the process arguments.
 func ExampleApp_FX() {
-	server := confx.MakeModule("server", confx.Provide[serverConfig]("server"))
+	server := confx.MakeModule("server", confx.Provide[ServerConfig]("server"))
 	store := confx.MakeModule("store", confx.Provide[StoreConfig]("store"))
 	definition := confx.New(server, store).WithOptions(
 		confmaker.WithEnv(map[string]string{
@@ -62,7 +62,7 @@ func ExampleApp_FX() {
 		}),
 	)
 
-	var serverCfg serverConfig
+	var serverCfg ServerConfig
 	var storeCfg StoreConfig
 	fxApp := fx.New(
 		fx.NopLogger,

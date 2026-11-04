@@ -78,8 +78,7 @@ func (a *App) FX() fx.Option {
 // timeout, shutdown and exit-code behavior. Each call creates a fresh Fx app;
 // concurrent Run calls are unsupported. Use Manifest and FX for custom CLI or
 // lifecycle control. Run does not recover user panics.
-// Run is the explicitly agreed process-entry exception to the library no-exit
-// rule. Process exits skip caller defers; use Manifest and FX when the caller
+// Process exits skip caller defers; use Manifest and FX when the caller
 // must retain control of cleanup and exit decisions.
 func (a *App) Run() {
 	isHandled, err := a.isDescribeHandled(os.Args[1:], os.Stdout)

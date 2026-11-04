@@ -61,7 +61,8 @@ func Module(opts ...confmaker.LoaderOption) fx.Option {
 	return legacyOption{optionBridge: makeModule(func() *confmaker.Loader { return confmaker.MakeLoader(opts...) }, providedConfigs)}
 }
 
-// FromLoader uses an existing loader instead of Module. Use only FromHandle or
+// FromLoader uses an existing loader instead of Module. A nil loader produces
+// [ErrLoaderIsNil] in fx.App.Err. Use only FromHandle or
 // FromHandleNamed with it; Provide registrations are rejected before loading.
 // Load runs during fx.New, even without config consumers.
 // A previously loaded loader retains its result and refuses new registrations.
