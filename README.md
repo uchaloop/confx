@@ -33,7 +33,7 @@ Choose the entry point that matches your application:
 | --- | --- |
 | Ordinary Fx injection, no built-in help/describe | `fx.New(confx.Module(), server.Module, store.Module).Run()` |
 | Built-in help and configuration description | `confx.New(modules...).Run()` |
-| Custom CLI or manual Fx lifecycle | `App.Manifest` / `App.FX` |
+| Custom CLI or manual Fx lifecycle | `App.HandleCLI` / `App.FX` |
 | Caller-owned loader and registrations | `FromLoader` / `FromHandle` |
 
 Both variants below use these shared configs and service modules. Create a
@@ -329,8 +329,8 @@ the custom-engine limitation.
 
 ### Custom CLI and manual lifecycle
 
-Use `App.Manifest` with your own flag parser, or pass the App to
-`confcli.Describe`. The same composition supplies the Fx application:
+Use `App.HandleCLI` for built-in help/describe, or `App.Manifest` with your own
+flag parser. The same composition supplies the Fx application:
 
 ```go
 definition := confx.New(
@@ -339,12 +339,12 @@ definition := confx.New(
 	confx.Runtime(ServerModule, StoreModule),
 )
 
-isDescribed, err := confcli.Describe(definition, os.Args[1:], os.Stdout)
+isHandled, err := definition.HandleCLI(os.Args[1:], os.Stdout)
 if err != nil {
 	log.Fatal(err)
 }
 
-if isDescribed {
+if isHandled {
 	return
 }
 
@@ -354,6 +354,14 @@ fxApp.Run()
 
 For a cronjob, use Fx's `Start`/`Stop` and `fx.Populate` instead of `Run` to retain
 control of the task and cleanup. `App.FX()` does not parse flags or exit.
+`HandleCLI` never constructs Fx, invokes configuration loading, prints errors or
+exits. It returns `(isHandled, err)`; handle errors before checking the flag.
+A nil writer discards output; writers remain caller-owned. Description still
+calls user defaults under the manifest options, as described above.
+
+The composition also satisfies the new `jobfx.Application` interface:
+`jobfx.New(definition)` handles CLI before a one-shot job and owns the startup,
+work and observation sequence. The caller defers Stop and chooses the exit code.
 
 ## External loader
 

@@ -84,7 +84,7 @@ not exit the process). Preserve `confx.New(...).Run()`: CLI errors exit with cod
 1 and normal startup delegates signal handling, lifecycle and exit codes to
 `fx.App.Run`. Successful help/description returns without constructing Fx.
 Process exits skip caller defers. Applications that need to control cleanup and
-exit decisions must use `App.Manifest` and `App.FX` with a manual Fx lifecycle.
+exit decisions must use `App.HandleCLI` and `App.FX` with a manual Fx lifecycle.
 This exception applies only to the process entry point, not other adapter APIs.
 
 ## Composition contracts

@@ -4,6 +4,13 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
+## [0.7.0]
+
+### Added
+
+- Added `App.HandleCLI` for caller-owned CLI output, errors and process lifecycle
+  without constructing Fx or loading environment values.
+
 ## [0.6.2] - 2026-11-04
 
 ### Changed
@@ -159,3 +166,5 @@ Entries are grouped by version and change type, with the newest version first.
 [0.6.1]: https://github.com/uchaloop/confx/compare/v0.6.0...v0.6.1
 
 [0.6.2]: https://github.com/uchaloop/confx/compare/v0.6.1...HEAD
+
+[Unreleased]: https://github.com/uchaloop/confx/compare/v0.6.2...HEAD
