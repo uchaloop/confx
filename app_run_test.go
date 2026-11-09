@@ -23,7 +23,7 @@ func (w appFailWriter) Write([]byte) (int, error) { return 0, w.err }
 func TestAppDescribeWriterError(t *testing.T) {
 	want := errors.New("output unavailable")
 	for _, args := range [][]string{{"-help"}, {"-describe=json"}} {
-		isHandled, err := New().isDescribeHandled(args, appFailWriter{err: want})
+		isHandled, err := New().HandleCLI(args, appFailWriter{err: want})
 		if isHandled || !errors.Is(err, want) {
 			t.Fatalf("handled=%v err=%v", isHandled, err)
 		}
@@ -223,4 +223,13 @@ func TestAppRunHelper(t *testing.T) {
 	}
 	fmt.Fprintln(os.Stdout, "returned-marker")
 	os.Exit(0)
+}
+
+func TestAppHandleCLIWithoutOutput(t *testing.T) {
+	for _, args := range [][]string{{"-help"}, {"-describe=json"}, nil} {
+		isHandled, err := New(Runtime(fx.Invoke(func() { t.Error("runtime constructed") }))).HandleCLI(args, nil)
+		if err != nil || isHandled != (len(args) != 0) {
+			t.Fatalf("handled=%v err=%v", isHandled, err)
+		}
+	}
 }

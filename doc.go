@@ -37,7 +37,7 @@ Declare configs at the root and wrap ordinary service modules in [Runtime]:
 The New example shows both service modules with consumers. [New] captures the
 composition lazily. [App.Run] handles help and describe before constructing Fx,
 then delegates normal startup to Fx. It may exit the process, skipping caller
-defers. For custom CLI handling or manual lifecycle control, use [App.Manifest]
+defers. For custom CLI handling or manual lifecycle control, use [App.HandleCLI]
 and [App.FX]; the FX example demonstrates injection through fx.Populate. App has
 no Err/Start/Stop methods. Its method documentation defines option precedence.
 For advanced nested declaration scopes, [MakeModule] preserves Fx module boundaries.

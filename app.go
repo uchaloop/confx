@@ -104,12 +104,12 @@ func (a *App) FX() fx.Option {
 // to stderr and exit with code 1. Successful help or description returns normally.
 // Otherwise Run delegates to fx.New(a.FX()).Run(), including Fx's signal,
 // timeout, shutdown and exit-code behavior. Each call creates a fresh Fx app;
-// concurrent Run calls are unsupported. Use Manifest and FX for custom CLI or
+// concurrent Run calls are unsupported. Use HandleCLI and FX for custom CLI or
 // lifecycle control. Run does not recover user panics.
-// Process exits skip caller defers; use Manifest and FX when the caller
+// Process exits skip caller defers; use HandleCLI and FX when the caller
 // must retain control of cleanup and exit decisions.
 func (a *App) Run() {
-	isHandled, err := a.isDescribeHandled(os.Args[1:], os.Stdout)
+	isHandled, err := a.HandleCLI(os.Args[1:], os.Stdout)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
@@ -123,6 +123,15 @@ func (a *App) Run() {
 	fx.New(a.FX()).Run()
 }
 
-func (a *App) isDescribeHandled(args []string, writer io.Writer) (bool, error) {
+// HandleCLI handles help and configuration descriptions without constructing Fx
+// or invoking configuration loading. Description may call user defaults, which
+// can perform I/O. A true result means the CLI request completed;
+// false with no error means normal startup should continue. Errors are returned
+// without printing or exiting. The caller owns writer; nil uses io.Discard.
+func (a *App) HandleCLI(args []string, writer io.Writer) (isHandled bool, err error) {
+	if writer == nil {
+		writer = io.Discard
+	}
+
 	return confcli.Describe(a, args, writer)
 }
