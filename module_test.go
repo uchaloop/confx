@@ -172,9 +172,9 @@ func TestProvideNamedTagsInstance(t *testing.T) {
 	t.Parallel()
 
 	env := map[string]string{
-		"CONFXDEFAULT_HOST":          "primary",
+		"CONFXDEFAULT_HOST":         "primary",
 		"CONFXREPLICA_SERVICE_HOST": "replica",
-		"CONFXCUSTOM_HOST":           "custom",
+		"CONFXCUSTOM_HOST":          "custom",
 	}
 
 	type configs struct {
