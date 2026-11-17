@@ -19,7 +19,7 @@ func TestNestedManifestRunsNoApplicationCode(t *testing.T) {
 	constructors, invokes, hooks, callbacks := 0, 0, 0, 0
 	modules := New(MakeModule(
 		"parent",
-		Provide[config]("server", confmaker.WithPrefix("WEB_")),
+		ProvideWithOptions[config]("server", confmaker.WithPrefix("WEB_")),
 		MakeModule("child",
 			Provide[struct {
 				Host string `env:"HOST,required"`

@@ -129,7 +129,7 @@ func TestMixedModesDoNotChangeExternalLoader(t *testing.T) {
 	for _, isReversed := range []bool{false, true} {
 		loader := confmaker.MakeLoader(confmaker.WithEnv(nil))
 		handle := loader.Register[externalJob]("job")
-		opts := []fx.Option{FromLoader(loader), Provide[externalConfig]("postgres"), FromHandle(handle)}
+		opts := []fx.Option{FromLoader(loader), Provide[externalConfig]("service"), FromHandle(handle)}
 		if isReversed {
 			opts[0], opts[2] = opts[2], opts[0]
 		}

@@ -21,6 +21,7 @@ type optionBridge interface{ fx.Option }
 type declaredOption struct {
 	optionBridge
 	register func(*confmaker.Loader)
+	err      error
 }
 
 type standaloneOption struct{ optionBridge }
@@ -67,6 +68,10 @@ func inspectOptions(
 
 		switch opt := opt.(type) {
 		case declaredOption:
+			if opt.err != nil {
+				return fmt.Errorf("%s: %w", location, opt.err)
+			}
+
 			if declarations != nil {
 				*declarations = append(*declarations, opt.register)
 			}

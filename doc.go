@@ -58,9 +58,13 @@ lifecycle to Fx construction. Custom engines do not support manifest/describe.
 # Registration, errors and diagnostics
 
 Provide supplies an untagged value; ProvideNamed uses the registration name as
-its Fx name tag. With the built-in engine, the name also determines the ENV
-prefix; confmaker.WithPrefix changes only that prefix. Multiple values of one Go
-type need distinct Fx identities. A custom engine owns source lookup and tags.
+its Fx name tag and requires a nonempty name. With the built-in engine,
+Provide[T]() derives the identity and prefix from an optional EnvPrefix() string
+method on T. Explicit names compose with that prefix, except for an exact match.
+Types without the method still require a name. ProvideWithOptions supplies typed
+options; confmaker.WithPrefix changes only ENV lookup. Migrate old option-bearing
+Provide calls to ProvideWithOptions. Multiple values of one Go type need distinct
+Fx identities. Custom engines require explicit names and own source lookup and tags.
 
 Use errors.Is with [ErrLoaderIsNil], [ErrHandleIsNil] and [ErrOpaqueOption]. Core
 diagnostics remain accessible through confmaker.ConfigErrors and errors.As.

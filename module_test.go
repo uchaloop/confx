@@ -173,7 +173,7 @@ func TestProvideNamedTagsInstance(t *testing.T) {
 
 	env := map[string]string{
 		"CONFXDEFAULT_HOST":          "primary",
-		"CONFXREPLICA_POSTGRES_HOST": "replica",
+		"CONFXREPLICA_SERVICE_HOST": "replica",
 		"CONFXCUSTOM_HOST":           "custom",
 	}
 
@@ -189,7 +189,7 @@ func TestProvideNamedTagsInstance(t *testing.T) {
 		fx.NopLogger,
 		Module(confmaker.WithEnv(env)),
 		Provide[namedConfig]("confxdefault"),
-		ProvideNamed[namedConfig]("replica", confmaker.WithPrefix("CONFXREPLICA_POSTGRES_")),
+		ProvideNamed[namedConfig]("replica", confmaker.WithPrefix("CONFXREPLICA_SERVICE_")),
 		ProvideNamed[namedConfig]("custom", confmaker.WithPrefix("CONFXCUSTOM_")),
 		fx.Invoke(func(c configs) { got = c }),
 	).Err()
@@ -206,8 +206,8 @@ func TestProvidersRejectInvalidNames(t *testing.T) {
 	t.Parallel()
 
 	for providerName, provider := range map[string]func(string, ...confmaker.ConfigOption) fx.Option{
-		"Provide":      Provide[namedConfig],
-		"ProvideNamed": ProvideNamed[namedConfig],
+		"ProvideWithOptions": ProvideWithOptions[namedConfig],
+		"ProvideNamed":       ProvideNamed[namedConfig],
 	} {
 		for _, tc := range []struct {
 			name         string
@@ -246,7 +246,7 @@ func TestProvidePrefixOverridePreservesInstanceName(t *testing.T) {
 	err := fx.New(
 		fx.NopLogger,
 		Module(confmaker.WithEnv(map[string]string{"CUSTOM_HOST": "db"}), confmaker.WithDiagnosticHandler(func(r confmaker.LoadReport) { report = r })),
-		Provide[namedConfig]("primary", confmaker.WithPrefix("CUSTOM_")),
+		ProvideWithOptions[namedConfig]("primary", confmaker.WithPrefix("CUSTOM_")),
 		fx.Populate(&got),
 	).Err()
 	if err != nil || got.Host != "db" {

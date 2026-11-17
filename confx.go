@@ -116,23 +116,48 @@ func makeModule(makeLoader func() *confmaker.Loader, mode registrationMode) fx.O
 	)
 }
 
-// Provide registers a config with the required instance name and provides it
-// without an Fx tag. With the built-in engine, confmaker validates the name and derives its ENV
-// prefix; [confmaker.WithPrefix] overrides only the prefix. Install [Module] once
-// with direct fx.New; [App.FX] installs it automatically.
-// FromLoader cannot be mixed with Provide.
-// The config is loaded during fx.New even when no constructor consumes it.
-func Provide[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
+// Provide registers a config and provides it without an Fx tag. Zero or one
+// instance name is accepted. An omitted or empty name asks the built-in engine
+// to derive the identity and ENV prefix from T's EnvPrefix() string method.
+// Custom engines require an explicit name. Use [ProvideWithOptions] for options.
+// Install [Module] once with direct fx.New; [App.FX] installs it automatically.
+// FromLoader cannot be mixed with Provide. Loading happens during fx.New even
+// when no constructor consumes the config.
+func Provide[T any](names ...string) fx.Option {
+	if len(names) > 1 {
+		return invalidDeclaration(errors.New("at most one instance name is allowed"))
+	}
+
+	var name string
+	if len(names) == 1 {
+		name = names[0]
+	}
+
+	return provide[T](name, nil, "")
+}
+
+// ProvideWithOptions registers an untagged config with typed confmaker options.
+// An empty name requests the built-in engine's type-derived identity and prefix,
+// as in [Provide]. WithPrefix overrides ENV lookup without changing identity.
+func ProvideWithOptions[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
 	return provide[T](name, opts, "")
 }
 
-// ProvideNamed registers a config with the required instance name and provides
-// it with the Fx tag name:"<name>". With the built-in engine, the name determines the default prefix;
-// [confmaker.WithPrefix] can override the prefix. Install [Module] once with
-// direct fx.New; [App.FX] installs it automatically.
+// ProvideNamed registers a config with a nonempty instance name and supplies it
+// with the Fx tag name:"<name>". The built-in engine composes the name with T's
+// optional EnvPrefix; WithPrefix overrides ENV lookup without changing the tag.
+// Install [Module] once with direct fx.New; [App.FX] installs it automatically.
 // Loading happens during fx.New as for [Provide].
 func ProvideNamed[T any](name string, opts ...confmaker.ConfigOption) fx.Option {
+	if len(name) == 0 {
+		return invalidDeclaration(errors.New("an instance name is required"))
+	}
+
 	return provide[T](name, opts, utilfx.NameTag(name))
+}
+
+func invalidDeclaration(err error) fx.Option {
+	return declaredOption{optionBridge: fx.Error(err), err: err}
 }
 
 // provide adds three things to the application: the registration Module
