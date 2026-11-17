@@ -4,6 +4,29 @@ All notable changes to this module are documented in this file.
 
 Entries are grouped by version and change type, with the newest version first.
 
+## [Unreleased]
+
+## [0.8.0] - 2026-11-17
+
+### Added
+
+- Added default `Provide[T]()` registration for types declaring `EnvPrefix() string`
+  with the built-in engine, including offline manifests and `App.FX`.
+- Added `ProvideWithOptions[T](name, opts...)` for typed option forwarding.
+
+### Changed
+
+- Updated confmaker/v2 to v2.2.0 in the adapter, engine examples and secret integration.
+
+- **Breaking:** `Provide` now accepts zero or one string name. Migrate calls with
+  config options and function values with the old signature to `ProvideWithOptions`.
+  `Provide[T]("name")` and `ProvideNamed` keep their call syntax.
+- The updated built-in engine composes explicit instance names with a type's
+  optional prefix. Use `WithPrefix` to retain legacy ENV keys. Custom engines
+  still require explicit names and keep their lookup behavior.
+- Reject multiple `Provide` names and empty `ProvideNamed` names consistently
+  during Fx construction and offline declaration inspection.
+
 ## [0.7.0] - 2026-11-09
 
 ### Added
@@ -165,6 +188,8 @@ Entries are grouped by version and change type, with the newest version first.
 
 [0.6.1]: https://github.com/uchaloop/confx/compare/v0.6.0...v0.6.1
 
-[0.6.2]: https://github.com/uchaloop/confx/compare/v0.6.1...HEAD
+[0.6.2]: https://github.com/uchaloop/confx/compare/v0.6.1...v0.6.2
 
-[Unreleased]: https://github.com/uchaloop/confx/compare/v0.6.2...HEAD
+[0.7.0]: https://github.com/uchaloop/confx/compare/v0.6.2...v0.7.0
+[0.8.0]: https://github.com/uchaloop/confx/compare/v0.7.0...v0.8.0
+[Unreleased]: https://github.com/uchaloop/confx/compare/v0.8.0...HEAD

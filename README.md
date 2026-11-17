@@ -12,7 +12,8 @@ configuration engines, validation and diagnostics; the adapter owns wiring them 
 
 Requires **Go 1.27.0 or later**. The command below installs the latest stable release.
 This README describes the current branch; for a pinned release, use its tagged documentation.
-The `App` API uses `confcli.Describe` from confmaker/v2 v2.1.0 or later.
+The prepared v0.8.0 release requires confmaker/v2 v2.2.0 for default type prefixes.
+It changes the `Provide` signature; see [the migration notes](CHANGELOG.md#080---2026-11-17).
 
 ```sh
 go get github.com/uchaloop/confx@latest
@@ -200,9 +201,47 @@ An instance name, an ENV prefix and an Fx tag serve different purposes:
 
 | Concept | Source | Purpose |
 |---|---|---|
-| Instance name | First argument to Provide / ProvideNamed | Core registration identity and diagnostics |
-| ENV prefix (built-in engine) | Derived from the name, or WithPrefix | Variable lookup |
+| Instance name | Explicit name, or inferred type prefix for default registration | Core registration identity and diagnostics |
+| ENV prefix (built-in engine) | Type prefix composed with the name, or WithPrefix | Variable lookup |
 | Fx name tag | ProvideNamed only | Select a named dependency |
+
+With the built-in engine, a type can declare its default prefix:
+
+```go
+type DatabaseConfig struct {
+    Host string `env:"HOST,required"`
+}
+
+func (DatabaseConfig) EnvPrefix() string { return "POSTGRES_" }
+
+// Untagged value, instance identity "postgres", reads POSTGRES_HOST.
+confx.Provide[DatabaseConfig]()
+// Fx tag "master", instance identity "master", reads MASTER_POSTGRES_HOST.
+confx.ProvideNamed[DatabaseConfig]("master")
+```
+
+`Provide[T]` accepts zero or one name. An empty name also requests default
+registration. Without a type prefix, an explicit name is required. A name that
+normalizes exactly to the type prefix is not repeated: `"postgres"` with
+`POSTGRES_` reads `POSTGRES_HOST`. Types without `EnvPrefix` retain the existing
+name-derived prefixes. The method is evaluated on a fresh zero value and must
+be deterministic and independent of loaded values or `SetDefaults`; value and
+pointer receivers are supported. Callback panics propagate, as with other
+confmaker callbacks.
+
+Use `ProvideWithOptions[T](name, opts...)` for typed options, including slice
+expansion. `WithPrefix` completely overrides ENV resolution without renaming
+the instance or changing the Fx tag. An empty name still needs a type prefix to
+derive its identity. Custom engines require explicit names and keep their own
+lookup semantics; they do not gain automatic prefix composition.
+
+**Migration:** option-bearing calls such as `Provide[T]("server", opts...)` must
+be changed to `ProvideWithOptions[T]("server", opts...)`. `Provide[T]("server")`
+still compiles; function values using the previous signature must also migrate.
+`ProvideNamed` retains its signature and rejects an empty name. Adding
+`EnvPrefix` to a type changes named instances' ENV keys in the built-in engine.
+For example, retain the old `MASTER_HOST` with
+`ProvideNamed[DatabaseConfig]("master", confmaker.WithPrefix("MASTER_"))`.
 
 Using `ServerConfig` from the quick start, replace its registration with:
 
